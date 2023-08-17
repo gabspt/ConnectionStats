@@ -3,7 +3,9 @@ package probe
 import (
 	"testing"
 
-	"github.com/pouriyajamshidi/flat/internal/packets"
+	//"github.com/pouriyajamshidi/flat/internal/packets"
+	"github.com/gabspt/ConnectionStats/internal/packets"
+
 	"github.com/stretchr/testify/require"
 )
 

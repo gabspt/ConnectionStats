@@ -7,7 +7,8 @@ import (
 	"log"
 	"net/netip"
 
-	"github.com/pouriyajamshidi/flat/internal/flowtable"
+	//"github.com/pouriyajamshidi/flat/internal/flowtable"
+	"github.com/gabspt/ConnectionStats/internal/flowtable"
 )
 
 /*
@@ -102,7 +103,7 @@ var ipProtoNums = map[uint8]string{
 	17: "UDP",
 }
 
-func CalcStats(pkt Packet, table *flowtable.FlowTable, conn flowtable.Connection) {
+func CalcStats(pkt Packet, table *flowtable.FlowTable) {
 	proto, ok := ipProtoNums[pkt.Protocol]
 
 	if !ok {
@@ -113,137 +114,65 @@ func CalcStats(pkt Packet, table *flowtable.FlowTable, conn flowtable.Connection
 	//Calculate packet hash
 	pktHash := pkt.Hash()
 
-	//Search if this Hash already exists in the table, if nothing was found return 0,false, else: ts,true
-	ts, ok := table.Get(pktHash)
-
-	if !ok && (pkt.Syn) || (proto == udp) {
-		//new connection and it is a syn tcp or a new udp conn
-		//save timestamp
-		table.Insert(pktHash, conn)
-		return
-
-	} else {
-		//existing connection
-		//preguntar si es fin
-	}
-
-	if !ok && pkt.Syn {
-		table.Insert(pktHash, conn)
-		return
-	} else if !ok && proto == udp {
-		table.Insert(pktHash, conn)
-		return
-	}
-
-	convertIPToString := func(address netip.Addr) string {
-		return address.Unmap().String()
-	}
-
-	if (ok && pkt.Ack) || (ok && proto == udp) {
-		fmt.Printf("(%v) Flow | A: %v:%v B: %v:%v | inpps: %v | outpps: %v | inBpp: %v | outBpp: %v| inBoutB: %v | inPoutP: %v\n", // nice format
-			// fmt.Printf("(%v) Flow | A: %v:%v | B: %v:%v | In_pps: %v |\tlatency: %.3f ms\n",
-			proto,
-			convertIPToString(pkt.DstIP),
-			pkt.DstPort,
-			convertIPToString(pkt.SrcIP),
-			pkt.SrcPort,
-			(uint64(packets_in))/(uint64(conn.ts_fin)-uint64(conn.ts_ini)),
-			(float64(pkt.TimeStamp)-float64(ts))/1000000,
-		)
-
-		table.Remove(pktHash)
-	}
-}
-
-func CalcLatency(pkt Packet, table *flowtable.FlowTable) {
-	proto, ok := ipProtoNums[pkt.Protocol]
-
-	if !ok {
-		log.Print("Failed fetching protocol number")
-		return
-	}
-
-	//Calculate packet hash
-	pktHash := pkt.Hash()
+	//c := flowtable.NewConnection()
 
 	//Search if this Hash already exists in the table, if nothing was found return 0,false, else: ts,true
-	ts, ok := table.Get(pktHash)
+	c, ok := table.Get(pktHash)
 
-	if !ok {
-		//new connection
-		//save timestamp
+	if !ok && ((pkt.Syn) || (proto == udp)) { //new connection and it is a syn tcp or a new udp conn
+		//ask if the pkt is inbound or outbound and update the corresponding counters
+		if pkt.Outbound {
+			c.Packets_out++
+			c.Bytes_out = c.Bytes_out + uint64(pkt.Len)
+			c.Ts_ini = pkt.TimeStamp
+		} else {
+			c.Packets_in++
+			c.Bytes_in = c.Bytes_in + uint64(pkt.Len)
+			c.Ts_ini = pkt.TimeStamp
+		}
+		//add new connection to the table
+		table.Insert(pktHash, c)
+		return
 
-	} else {
-		//existing connection
+	} else { //existing connection, in other words it's a new packet that belongs to an existing connection
+		//ask if the pkt is inbound or outbound and update the corresponding counters
+		if pkt.Outbound {
+			c.Packets_out++
+			c.Bytes_out = c.Bytes_out + uint64(pkt.Len)
+			c.Ts_fin = pkt.TimeStamp
+		} else {
+			c.Packets_in++
+			c.Bytes_in = c.Bytes_in + uint64(pkt.Len)
+			c.Ts_fin = pkt.TimeStamp
+		}
+		//in this case "Insert" updates the existing connection with new value c
+		table.Insert(pktHash, c)
+
 		//preguntar si es fin
-	}
 
-	if !ok && pkt.Syn {
-		table.Insert(pktHash, flowtable.Connection)
-		return
-	} else if !ok && proto == udp {
-		table.Insert(pktHash, pkt.TimeStamp)
-		return
+		//si es fin empezar contadores nuevos locales temporales, cuando vea que han pasado 2fin y 2ack para esta conexion, autoaticamente eliminarla de la tabla
 	}
 
 	convertIPToString := func(address netip.Addr) string {
 		return address.Unmap().String()
 	}
 
-	if (ok && pkt.Ack) || (ok && proto == udp) {
-		fmt.Printf("(%v) Flow | src: %v:%v dst: %v:%v TTL: %v \tlatency: %.3f ms\n", // nice format
-			// fmt.Printf("(%v) Flow | src: %v:%v | dst: %v:%v | TTL: %v |\tlatency: %.3f ms\n",
-			proto,
-			convertIPToString(pkt.DstIP),
-			pkt.DstPort,
-			convertIPToString(pkt.SrcIP),
-			pkt.SrcPort,
-			pkt.Ttl,
-			(float64(pkt.TimeStamp)-float64(ts))/1000000,
-		)
+	//print connection statistics
+	fmt.Printf("(%v) Flow | A: %v:%v B: %v:%v | inpps: %v | outpps: %v | inBpp: %v | outBpp: %v| inBoutB: %v | inPoutP: %v\n", // nice format
+		// fmt.Printf("(%v) Flow | A: %v:%v | B: %v:%v | In_pps: %v |\tlatency: %.3f ms\n",
+		proto,
+		convertIPToString(pkt.DstIP),
+		pkt.DstPort,
+		convertIPToString(pkt.SrcIP),
+		pkt.SrcPort,
+		uint64(c.Packets_in)/(uint64(c.Ts_fin)-uint64(c.Ts_ini)),
+		uint64(c.Packets_out)/(uint64(c.Ts_fin)-uint64(c.Ts_ini)),
+		c.Bytes_in/c.Packets_in,
+		c.Bytes_out/c.Packets_out,
+		c.Bytes_in/c.Bytes_out,
+		c.Packets_in/c.Packets_out,
+	)
 
-		table.Remove(pktHash)
-	}
-}
-
-func RefreshStats(pkt Packet, table *flowtable.FlowTable) {
-
-	proto, ok := ipProtoNums[pkt.Protocol]
-
-	if !ok {
-		log.Print("Failed fetching protocol number")
-		return
-	}
-
-	pktHash := pkt.Hash()
-
-	ts, ok := table.Get(pktHash)
-
-	if !ok && pkt.Syn {
-		table.Insert(pktHash, pkt.TimeStamp)
-		return
-	} else if !ok && proto == udp {
-		table.Insert(pktHash, pkt.TimeStamp)
-		return
-	}
-
-	convertIPToString := func(address netip.Addr) string {
-		return address.Unmap().String()
-	}
-
-	if (ok && pkt.Ack) || (ok && proto == udp) {
-		fmt.Printf("(%v) Flow | src: %v:%v dst: %v:%v TTL: %v \tlatency: %.3f ms\n", // nice format
-			// fmt.Printf("(%v) Flow | src: %v:%v | dst: %v:%v | TTL: %v |\tlatency: %.3f ms\n",
-			proto,
-			convertIPToString(pkt.DstIP),
-			pkt.DstPort,
-			convertIPToString(pkt.SrcIP),
-			pkt.SrcPort,
-			pkt.Ttl,
-			(float64(pkt.TimeStamp)-float64(ts))/1000000,
-		)
-
-		table.Remove(pktHash)
-	}
+	table.Remove(pktHash)
 
 }

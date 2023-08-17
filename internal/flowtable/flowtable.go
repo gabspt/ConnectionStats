@@ -5,7 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pouriyajamshidi/flat/internal/timer"
+	//"github.com/pouriyajamshidi/flat/internal/timer"
+	"github.com/gabspt/ConnectionStats/internal/timer"
 )
 
 type FlowTable struct {
@@ -14,12 +15,12 @@ type FlowTable struct {
 }
 
 type Connection struct {
-	packets_in  uint64
-	packets_out uint64
-	ts_ini      uint64
-	ts_fin      uint64
-	bytes_in    uint64
-	bytes_out   uint64
+	Packets_in  uint64
+	Packets_out uint64
+	Ts_ini      uint64
+	Ts_fin      uint64
+	Bytes_in    uint64
+	Bytes_out   uint64
 }
 
 // NewFlowTable Constructs a new FlowTable
@@ -28,8 +29,8 @@ func NewFlowTable() *FlowTable {
 }
 
 // NewConnection Constructs a new Connection
-func NewConnection() *Connection {
-	return &Connection{}
+func NewConnection() Connection {
+	return Connection{}
 }
 
 // add adds packet hash as a new connection and its connection attributes to the FlowTable
@@ -70,7 +71,7 @@ func (table *FlowTable) Prune() {
 			return false
 		}
 
-		if (now-connection.ts_fin)/1000000 > 10000 {
+		if (now-connection.Ts_fin)/1000000 > 10000 {
 			log.Printf("Pruning stale entry from flow table: %v", hash)
 
 			table.Delete(hash)
@@ -82,7 +83,7 @@ func (table *FlowTable) Prune() {
 }
 
 // UpdateTimestamp updates the timestamp value for a packet hash in the FlowTable
-func (table *FlowTable) UpdateConnection(hash uint64, newConnection Connection) {
+/*func (table *FlowTable) UpdateConnection(hash uint64, newConnection Connection) {
 	value, ok := table.Load(hash)
 	if ok {
 		//connection, isConnection := value.(Connection)
@@ -104,4 +105,4 @@ func (table *FlowTable) UpdateConnection(hash uint64, newConnection Connection) 
 	} else {
 		log.Printf("Hash %v not found in flow table", hash)
 	}
-}
+}*/

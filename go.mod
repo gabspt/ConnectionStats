@@ -1,4 +1,4 @@
-module github.com/pouriyajamshidi/flat
+module github.com/gabspt/ConnectionStats
 
 go 1.20
 
