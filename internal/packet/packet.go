@@ -158,6 +158,25 @@ func CalcStats(pkt Packet, table *flowtable.FlowTable) {
 	}
 
 	//print connection statistics
+	inpps := uint64(c.Packets_in) / (uint64(c.Ts_fin) - uint64(c.Ts_ini))
+	outpps := uint64(c.Packets_out) / (uint64(c.Ts_fin) - uint64(c.Ts_ini))
+	inBpp := uint64(0)
+	if c.Packets_in != 0 {
+		inBpp = c.Bytes_in / c.Packets_in
+	}
+	outBpp := uint64(0)
+	if c.Packets_out != 0 {
+		outBpp = c.Bytes_out / c.Packets_out
+	}
+	inBoutB := uint64(0)
+	if c.Bytes_out != 0 {
+		inBoutB = c.Bytes_in / c.Bytes_out
+	}
+	inPoutP := uint64(0)
+	if c.Packets_out != 0 {
+		inPoutP = c.Packets_in / c.Packets_out
+	}
+
 	fmt.Printf("(%v) Flow | A: %v:%v B: %v:%v | inpps: %v | outpps: %v | inBpp: %v | outBpp: %v| inBoutB: %v | inPoutP: %v\n", // nice format
 		// fmt.Printf("(%v) Flow | A: %v:%v | B: %v:%v | In_pps: %v |\tlatency: %.3f ms\n",
 		proto,
@@ -165,12 +184,12 @@ func CalcStats(pkt Packet, table *flowtable.FlowTable) {
 		pkt.DstPort,
 		convertIPToString(pkt.SrcIP),
 		pkt.SrcPort,
-		uint64(c.Packets_in)/(uint64(c.Ts_fin)-uint64(c.Ts_ini)),
-		uint64(c.Packets_out)/(uint64(c.Ts_fin)-uint64(c.Ts_ini)),
-		c.Bytes_in/c.Packets_in,
-		c.Bytes_out/c.Packets_out,
-		c.Bytes_in/c.Bytes_out,
-		c.Packets_in/c.Packets_out,
+		inpps,
+		outpps,
+		inBpp,
+		outBpp,
+		inBoutB,
+		inPoutP,
 	)
 
 	table.Remove(pktHash)
