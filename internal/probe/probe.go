@@ -5,9 +5,6 @@ import (
 	"log"
 
 	"github.com/cilium/ebpf/perf"
-	//"github.com/pouriyajamshidi/flat/clsact"
-	//"github.com/pouriyajamshidi/flat/internal/flowtable"
-	//"github.com/pouriyajamshidi/flat/internal/packet"
 	"github.com/gabspt/ConnectionStats/clsact"
 	"github.com/gabspt/ConnectionStats/internal/flowtable"
 	"github.com/gabspt/ConnectionStats/internal/packet"
@@ -16,6 +13,8 @@ import (
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go probe ../../bpf/connstats.c - -O3  -Wall -Werror -Wno-address-of-packed-member
+
+//
 
 const tenMegaBytes = 1024 * 1024 * 10 // 10MB
 
@@ -71,36 +70,50 @@ func (p *probe) createQdisc() error {
 func (p *probe) createFilters() error {
 	log.Printf("Creating qdisc filters")
 
-	addFilter := func(attrs netlink.FilterAttrs) {
+	/*addFilter := func(attrs netlink.FilterAttrs) {
 		p.filters = append(p.filters, &netlink.BpfFilter{
 			FilterAttrs:  attrs,
 			Fd:           p.bpfObjects.probePrograms.Connstats.FD(),
 			DirectAction: true,
 		})
+	}*/
+	addFilterin := func(attrs netlink.FilterAttrs) {
+		p.filters = append(p.filters, &netlink.BpfFilter{
+			FilterAttrs:  attrs,
+			Fd:           p.bpfObjects.probePrograms.Connstatsin.FD(),
+			DirectAction: true,
+		})
+	}
+	addFilterout := func(attrs netlink.FilterAttrs) {
+		p.filters = append(p.filters, &netlink.BpfFilter{
+			FilterAttrs:  attrs,
+			Fd:           p.bpfObjects.probePrograms.Connstatsout.FD(),
+			DirectAction: true,
+		})
 	}
 
-	addFilter(netlink.FilterAttrs{
+	addFilterin(netlink.FilterAttrs{
 		LinkIndex: p.iface.Attrs().Index,
 		Handle:    netlink.MakeHandle(0xffff, 0),
 		Parent:    netlink.HANDLE_MIN_INGRESS,
 		Protocol:  unix.ETH_P_IP,
 	})
 
-	addFilter(netlink.FilterAttrs{
+	addFilterout(netlink.FilterAttrs{
 		LinkIndex: p.iface.Attrs().Index,
 		Handle:    netlink.MakeHandle(0xffff, 0),
 		Parent:    netlink.HANDLE_MIN_EGRESS,
 		Protocol:  unix.ETH_P_IP,
 	})
 
-	addFilter(netlink.FilterAttrs{
+	addFilterin(netlink.FilterAttrs{
 		LinkIndex: p.iface.Attrs().Index,
 		Handle:    netlink.MakeHandle(0xffff, 0),
 		Parent:    netlink.HANDLE_MIN_INGRESS,
 		Protocol:  unix.ETH_P_IPV6,
 	})
 
-	addFilter(netlink.FilterAttrs{
+	addFilterout(netlink.FilterAttrs{
 		LinkIndex: p.iface.Attrs().Index,
 		Handle:    netlink.MakeHandle(0xffff, 0),
 		Parent:    netlink.HANDLE_MIN_EGRESS,

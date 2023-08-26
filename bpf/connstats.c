@@ -1,10 +1,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-
 #include <linux/bpf.h>
 #include <linux/bpf_common.h>
-
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <linux/in.h>
@@ -14,7 +12,6 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/pkt_cls.h>
-
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 
@@ -28,7 +25,6 @@ struct packet_t {
     __be16 src_port;
     __be16 dst_port;
     __u8 protocol;
-    __u8 ttl;
     bool syn;
     bool ack;
     bool fin;
@@ -65,7 +61,6 @@ static inline int handle_ip_packet(uint8_t* head, uint8_t* tail, uint32_t* offse
         pkt->dst_ip.in6_u.u6_addr16[5] = 0xffff;
 
         pkt->protocol = ip->protocol;
-        pkt->ttl = ip->ttl;
 
         return 1; // We have a TCP or UDP packet!
 
@@ -86,7 +81,6 @@ static inline int handle_ip_packet(uint8_t* head, uint8_t* tail, uint32_t* offse
         pkt->dst_ip = ipv6->daddr;
 
         pkt->protocol = ipv6->nexthdr;
-        pkt->ttl = ipv6->hop_limit;
 
         return 1; // We have a TCP or UDP packet!
 
@@ -103,27 +97,6 @@ static inline int handle_ip_segment(uint8_t* head, uint8_t* tail, uint32_t* offs
     case IPPROTO_TCP:
         tcp = (void*)head + *offset;
 
-        /*if (tcp->syn) { // We have SYN or SYN/ACK
-            pkt->src_port = tcp->source;
-            pkt->dst_port = tcp->dest;
-            pkt->syn = tcp->syn;
-            pkt->ack = tcp->ack;
-            pkt->fin = tcp->fin;
-            pkt->ts = bpf_ktime_get_ns();
-
-            return 1;
-        }
-
-        if (tcp->fin) { // We have FIN
-            pkt->src_port = tcp->source;
-            pkt->dst_port = tcp->dest;
-            pkt->syn = tcp->syn;
-            pkt->ack = tcp->ack;
-            pkt->fin = tcp->fin;
-            pkt->ts = bpf_ktime_get_ns();
-
-            return 1;
-        }*/
         pkt->src_port = tcp->source;
         pkt->dst_port = tcp->dest;
         pkt->syn = tcp->syn;
@@ -147,8 +120,8 @@ static inline int handle_ip_segment(uint8_t* head, uint8_t* tail, uint32_t* offs
     }
 }
 
-SEC("tc")
-int connstats(struct __sk_buff* skb) {
+SEC("classifier/ingress")
+int connstatsin(struct __sk_buff* skb) {
 
     if (bpf_skb_pull_data(skb, 0) < 0) {
         return TC_ACT_OK;
@@ -170,16 +143,8 @@ int connstats(struct __sk_buff* skb) {
 
     uint32_t offset = 0;
 
-    // Identify if it is an inbound or outbound packet and mark the packet with outbound boolean
-    if (skb->pkt_type == PACKET_OUTGOING) {
-        pkt.outbound = 1;
-    }else if (skb->pkt_type == PACKET_HOST) {
-        pkt.outbound = 0;
-    }else{
-        return TC_ACT_OK;
-    }
-
     pkt.len = skb->len;
+    pkt.outbound = false;
 
     if (handle_ip_packet(head, tail, &offset, &pkt) == TC_ACT_OK) {
         return TC_ACT_OK;
@@ -195,6 +160,51 @@ int connstats(struct __sk_buff* skb) {
     }
 
 
+    if (bpf_perf_event_output(skb, &pipe, BPF_F_CURRENT_CPU, &pkt, sizeof(pkt)) < 0) {
+        return TC_ACT_OK;
+    }
+
+    return TC_ACT_OK;
+}
+
+SEC("classifier/ingress")
+int connstatsout(struct __sk_buff* skb) {
+
+    if (bpf_skb_pull_data(skb, 0) < 0) {
+        return TC_ACT_OK;
+    }
+
+    // We only want unicast packets
+    if (skb->pkt_type == PACKET_BROADCAST || skb->pkt_type == PACKET_MULTICAST) {
+        return TC_ACT_OK;
+    }  
+
+    uint8_t* head = (uint8_t*)(long)skb->data;     // Start of the packet data
+    uint8_t* tail = (uint8_t*)(long)skb->data_end; // End of the packet data
+
+    if (head + sizeof(struct ethhdr) > tail) { // Not an Ethernet frame
+        return TC_ACT_OK;
+    }
+
+    struct packet_t pkt = { 0 };    
+
+    uint32_t offset = 0;
+
+    pkt.len = skb->len;
+    pkt.outbound = true;
+
+    if (handle_ip_packet(head, tail, &offset, &pkt) == TC_ACT_OK) {
+        return TC_ACT_OK;
+    }
+
+    // Check if TCP/UDP header is fitting this packet
+    if (head + offset + sizeof(struct tcphdr) > tail || head + offset + sizeof(struct udphdr) > tail) {
+        return TC_ACT_OK;
+    }
+
+    if (handle_ip_segment(head, tail, &offset, &pkt) == TC_ACT_OK) {
+        return TC_ACT_OK;
+    }
 
     if (bpf_perf_event_output(skb, &pipe, BPF_F_CURRENT_CPU, &pkt, sizeof(pkt)) < 0) {
         return TC_ACT_OK;

@@ -2,10 +2,10 @@ package flowtable
 
 import (
 	"log"
+	"net/netip"
 	"sync"
 	"time"
 
-	//"github.com/pouriyajamshidi/flat/internal/timer"
 	"github.com/gabspt/ConnectionStats/internal/timer"
 )
 
@@ -15,6 +15,10 @@ type FlowTable struct {
 }
 
 type Connection struct {
+	AIp         netip.Addr
+	BIp         netip.Addr
+	APort       uint16
+	BPort       uint16
 	Packets_in  uint64
 	Packets_out uint64
 	Ts_ini      uint64
@@ -48,7 +52,7 @@ func (table *FlowTable) Get(hash uint64) (Connection, bool) {
 	return value.(Connection), true
 }
 
-// delete deletes packet hash and its timestamp from the FlowTable
+// delete deletes connection hash and its data from the FlowTable
 func (table *FlowTable) Remove(hash uint64) {
 	_, found := table.Load(hash)
 
@@ -60,7 +64,7 @@ func (table *FlowTable) Remove(hash uint64) {
 	}
 }
 
-// Prune clears the stale entries (older than 10 seconds) from the FlowTable
+// Prune clears the stale entries (older than 60 seconds) from the FlowTable
 func (table *FlowTable) Prune() {
 	now := timer.GetNanosecSinceBoot()
 
@@ -70,16 +74,26 @@ func (table *FlowTable) Prune() {
 			// Not a Connection instance
 			return false
 		}
-
-		if (now-connection.Ts_fin)/1000000 > 10000 {
-			log.Printf("Pruning stale entry from flow table: %v", hash)
+		lastts := connection.Ts_fin
+		if (now-lastts)/1000000 > 60000 {
+			log.Printf("Pruning stale entry from flow table: %v after %vms", hash, (now-lastts)/1000000)
 
 			table.Delete(hash)
+			table.CountActiveConns()
 
 			return true
 		}
 		return false
 	})
+}
+
+func (table *FlowTable) CountActiveConns() {
+	counter := 0
+	table.Range(func(hash, value interface{}) bool {
+		counter++
+		return true
+	})
+	log.Printf("There are %v active connections", counter)
 }
 
 // UpdateTimestamp updates the timestamp value for a packet hash in the FlowTable

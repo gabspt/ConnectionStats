@@ -53,7 +53,8 @@ type probeSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type probeProgramSpecs struct {
-	Connstats *ebpf.ProgramSpec `ebpf:"connstats"`
+	Connstatsin  *ebpf.ProgramSpec `ebpf:"connstatsin"`
+	Connstatsout *ebpf.ProgramSpec `ebpf:"connstatsout"`
 }
 
 // probeMapSpecs contains maps before they are loaded into the kernel.
@@ -95,12 +96,14 @@ func (m *probeMaps) Close() error {
 //
 // It can be passed to loadProbeObjects or ebpf.CollectionSpec.LoadAndAssign.
 type probePrograms struct {
-	Connstats *ebpf.Program `ebpf:"connstats"`
+	Connstatsin  *ebpf.Program `ebpf:"connstatsin"`
+	Connstatsout *ebpf.Program `ebpf:"connstatsout"`
 }
 
 func (p *probePrograms) Close() error {
 	return _ProbeClose(
-		p.Connstats,
+		p.Connstatsin,
+		p.Connstatsout,
 	)
 }
 
