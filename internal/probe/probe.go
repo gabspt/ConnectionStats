@@ -70,13 +70,6 @@ func (p *probe) createQdisc() error {
 func (p *probe) createFilters() error {
 	log.Printf("Creating qdisc filters")
 
-	/*addFilter := func(attrs netlink.FilterAttrs) {
-		p.filters = append(p.filters, &netlink.BpfFilter{
-			FilterAttrs:  attrs,
-			Fd:           p.bpfObjects.probePrograms.Connstats.FD(),
-			DirectAction: true,
-		})
-	}*/
 	addFilterin := func(attrs netlink.FilterAttrs) {
 		p.filters = append(p.filters, &netlink.BpfFilter{
 			FilterAttrs:  attrs,
@@ -197,7 +190,7 @@ func (p *probe) Close() error {
 	return nil
 }
 
-func Run(ctx context.Context, iface netlink.Link) error {
+func Run(ctx context.Context, iface netlink.Link, ft *flowtable.FlowTable) error {
 	log.Println("Starting up the probe")
 
 	probe, err := newProbe(iface)
@@ -228,12 +221,12 @@ func Run(ctx context.Context, iface netlink.Link) error {
 		}
 	}()
 
-	flowtable := flowtable.NewFlowTable()
+	//flowtable := flowtable.NewFlowTable()
 	//connection := flowtable.NewConnection()
 
 	go func() {
-		for range flowtable.Ticker.C {
-			flowtable.Prune()
+		for range ft.Ticker.C {
+			ft.Prune()
 		}
 	}()
 
@@ -241,7 +234,7 @@ func Run(ctx context.Context, iface netlink.Link) error {
 		select {
 		case <-ctx.Done():
 			// reader.Close()
-			flowtable.Ticker.Stop()
+			ft.Ticker.Stop()
 			return probe.Close()
 
 		case pkt := <-c:
@@ -250,7 +243,8 @@ func Run(ctx context.Context, iface netlink.Link) error {
 				log.Printf("Could not unmarshall packet: %+v", pkt)
 				continue
 			}
-			packet.CalcStats(packetAttrs, flowtable)
+			packet.CalcStats(packetAttrs, ft)
+			//flowtable.Range()
 		}
 	}
 }
