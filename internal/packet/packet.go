@@ -177,43 +177,44 @@ func CalcStats(pkt Packet, table *flowtable.FlowTable) {
 		//	table.Remove(pktHash)
 		//}
 		//print connection statistics
-		inpps := float64(conn.Packets_in) / ((float64(conn.Ts_fin) - float64(conn.Ts_ini)) / 1000000000)
-		outpps := float64(conn.Packets_out) / ((float64(conn.Ts_fin) - float64(conn.Ts_ini)) / 1000000000)
-		inBpp := float64(0)
-		if conn.Packets_in != 0 {
-			inBpp = float64(conn.Bytes_in) / float64(conn.Packets_in)
-		}
-		outBpp := float64(0)
-		if conn.Packets_out != 0 {
-			outBpp = float64(conn.Bytes_out) / float64(conn.Packets_out)
-		}
-		inBoutB := float64(0)
-		if conn.Bytes_out != 0 {
-			inBoutB = float64(conn.Bytes_in) / float64(conn.Bytes_out)
-		}
-		inPoutP := float64(0)
-		if conn.Packets_out != 0 {
-			inPoutP = float64(conn.Packets_in) / float64(conn.Packets_out)
-		}
 
-		fmt.Printf("(%v) (%v) Flow | A: %v:%v B: %v:%v | inpps: %.2f | outpps: %.2f | inBpp: %.2f | outBpp: %.2f| inBoutB: %.2f | inPoutP: %.2f\n", // nice format
-			// fmt.Printf("(%v) Flow | A: %v:%v | B: %v:%v | In_pps: %v |\tlatency: %.3f ms\n",
-			proto,
-			pktHash,
-			convertIPToString(conn.AIp),
-			conn.APort,
-			convertIPToString(conn.BIp),
-			conn.BPort,
-			inpps,
-			outpps,
-			inBpp,
-			outBpp,
-			inBoutB,
-			inPoutP,
-		)
+		// inpps := float64(conn.Packets_in) / ((float64(conn.Ts_fin) - float64(conn.Ts_ini)) / 1000000000)
+		// outpps := float64(conn.Packets_out) / ((float64(conn.Ts_fin) - float64(conn.Ts_ini)) / 1000000000)
+		// inBpp := float64(0)
+		// if conn.Packets_in != 0 {
+		// 	inBpp = float64(conn.Bytes_in) / float64(conn.Packets_in)
+		// }
+		// outBpp := float64(0)
+		// if conn.Packets_out != 0 {
+		// 	outBpp = float64(conn.Bytes_out) / float64(conn.Packets_out)
+		// }
+		// inBoutB := float64(0)
+		// if conn.Bytes_out != 0 {
+		// 	inBoutB = float64(conn.Bytes_in) / float64(conn.Bytes_out)
+		// }
+		// inPoutP := float64(0)
+		// if conn.Packets_out != 0 {
+		// 	inPoutP = float64(conn.Packets_in) / float64(conn.Packets_out)
+		// }
 
-		fmt.Printf("conn: %+v\n", conn)
-		fmt.Printf("pkt: %+v\n", pkt)
+		// fmt.Printf("(%v) (%v) Flow | A: %v:%v B: %v:%v | inpps: %.2f | outpps: %.2f | inBpp: %.2f | outBpp: %.2f| inBoutB: %.2f | inPoutP: %.2f\n", // nice format
+		// 	// fmt.Printf("(%v) Flow | A: %v:%v | B: %v:%v | In_pps: %v |\tlatency: %.3f ms\n",
+		// 	proto,
+		// 	pktHash,
+		// 	convertIPToString(conn.AIp),
+		// 	conn.APort,
+		// 	convertIPToString(conn.BIp),
+		// 	conn.BPort,
+		// 	inpps,
+		// 	outpps,
+		// 	inBpp,
+		// 	outBpp,
+		// 	inBoutB,
+		// 	inPoutP,
+		// )
+
+		// fmt.Printf("conn: %+v\n", conn)
+		// fmt.Printf("pkt: %+v\n", pkt)
 		fmt.Printf(" \n")
 
 		if pkt.Fin {

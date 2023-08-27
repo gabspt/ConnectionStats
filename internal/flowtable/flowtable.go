@@ -96,6 +96,18 @@ func (table *FlowTable) CountActiveConns() {
 	log.Printf("There are %v active connections", counter)
 }
 
+func (table *FlowTable) GetConnList() []Connection {
+	var connlist []Connection
+	table.Range(func(hash, value interface{}) bool {
+		connection, ok := value.(Connection)
+		if ok {
+			connlist = append(connlist, connection)
+		}
+		return true
+	})
+	return connlist
+}
+
 // UpdateTimestamp updates the timestamp value for a packet hash in the FlowTable
 /*func (table *FlowTable) UpdateConnection(hash uint64, newConnection Connection) {
 	value, ok := table.Load(hash)
