@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/netip"
 
+	//"sync"
+
 	"github.com/gabspt/ConnectionStats/internal/flowtable"
 )
 
@@ -119,10 +121,10 @@ func CalcStats(pkt Packet, table *flowtable.FlowTable) {
 	//Calculate packet hash
 	pktHash := pkt.Hash()
 
-	//c := flowtable.NewConnection()
-
 	//Search if this Hash already exists in the table, if nothing was found return 0,false, else: ts,true
+	//ftMutex.RLock()
 	conn, ok := table.Get(pktHash)
+	//ftMutex.RUnlock()
 
 	if !ok { //&& ((pkt.Syn) || (proto == udp)) { //new connection and it is a syn tcp or a new udp conn
 		//ask if the pkt is inbound or outbound and update the corresponding counters
@@ -140,9 +142,13 @@ func CalcStats(pkt Packet, table *flowtable.FlowTable) {
 			conn.APort = pkt.SrcPort
 			conn.BIp = pkt.DstIP
 			conn.BPort = pkt.DstPort
+			conn.Hash = pktHash
+			conn.Proto = proto
 
 			//add new connection to the table
+			//ftMutex.Lock()
 			table.Insert(pktHash, conn)
+			//ftMutex.Unlock()
 
 			fmt.Printf("GOT A NEW CONNECTION\n")
 			fmt.Printf("(%v) (%v) Flow | A: %v:%v B: %v:%v\n", // nice format
@@ -168,14 +174,10 @@ func CalcStats(pkt Packet, table *flowtable.FlowTable) {
 			conn.Ts_fin = pkt.TimeStamp
 		}
 		//in this case "Insert" updates the existing connection with new value c
+		//ftMutex.Lock()
 		table.Insert(pktHash, conn)
+		//ftMutex.Unlock()
 
-		//Detect FIN packet
-		//if pkt.Fin {
-		//si es fin empezar contadores nuevos locales temporales, cuando vea que han pasado 2fin y 2ack para esta conexion, autoaticamente eliminarla de la tabla
-		//de momento no soy tan exquisita y al primer FIN que vea elimino la conexion
-		//	table.Remove(pktHash)
-		//}
 		//print connection statistics
 
 		// inpps := float64(conn.Packets_in) / ((float64(conn.Ts_fin) - float64(conn.Ts_ini)) / 1000000000)
@@ -227,9 +229,13 @@ func CalcStats(pkt Packet, table *flowtable.FlowTable) {
 		} else if wait4ACK && pkt.Ack && !pkt.Syn {
 			if wait4ACK && pkt.Ack && !pkt.Syn && !pkt.Fin {
 				//that was the last packet of the TCP connection. The TCP connection is closed. Remove it.
+				//ftMutex.Lock()
 				table.Remove(pktHash)
+				//ftMutex.Unlock()
 				wait4ACK = false
+				//ftMutex.RLock()
 				table.CountActiveConns()
+				//ftMutex.RUnlock()
 			}
 		}
 

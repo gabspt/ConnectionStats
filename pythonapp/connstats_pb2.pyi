@@ -6,7 +6,9 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class ConnectionStat(_message.Message):
-    __slots__ = ["a_ip", "b_ip", "a_port", "b_port", "packets_in", "packets_out", "ts_ini", "ts_fin", "bytes_in", "bytes_out"]
+    __slots__ = ["hash", "proto", "a_ip", "b_ip", "a_port", "b_port", "packets_in", "packets_out", "ts_ini", "ts_fin", "bytes_in", "bytes_out"]
+    HASH_FIELD_NUMBER: _ClassVar[int]
+    PROTO_FIELD_NUMBER: _ClassVar[int]
     A_IP_FIELD_NUMBER: _ClassVar[int]
     B_IP_FIELD_NUMBER: _ClassVar[int]
     A_PORT_FIELD_NUMBER: _ClassVar[int]
@@ -17,6 +19,8 @@ class ConnectionStat(_message.Message):
     TS_FIN_FIELD_NUMBER: _ClassVar[int]
     BYTES_IN_FIELD_NUMBER: _ClassVar[int]
     BYTES_OUT_FIELD_NUMBER: _ClassVar[int]
+    hash: int
+    proto: str
     a_ip: str
     b_ip: str
     a_port: int
@@ -27,7 +31,7 @@ class ConnectionStat(_message.Message):
     ts_fin: int
     bytes_in: int
     bytes_out: int
-    def __init__(self, a_ip: _Optional[str] = ..., b_ip: _Optional[str] = ..., a_port: _Optional[int] = ..., b_port: _Optional[int] = ..., packets_in: _Optional[int] = ..., packets_out: _Optional[int] = ..., ts_ini: _Optional[int] = ..., ts_fin: _Optional[int] = ..., bytes_in: _Optional[int] = ..., bytes_out: _Optional[int] = ...) -> None: ...
+    def __init__(self, hash: _Optional[int] = ..., proto: _Optional[str] = ..., a_ip: _Optional[str] = ..., b_ip: _Optional[str] = ..., a_port: _Optional[int] = ..., b_port: _Optional[int] = ..., packets_in: _Optional[int] = ..., packets_out: _Optional[int] = ..., ts_ini: _Optional[int] = ..., ts_fin: _Optional[int] = ..., bytes_in: _Optional[int] = ..., bytes_out: _Optional[int] = ...) -> None: ...
 
 class StatsRequest(_message.Message):
     __slots__ = []

@@ -15,6 +15,8 @@ type FlowTable struct {
 }
 
 type Connection struct {
+	Hash        uint64
+	Proto       string
 	AIp         netip.Addr
 	BIp         netip.Addr
 	APort       uint16

@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x63onnstats.proto\x12\x11\x63onnstatsprotobuf\"\xba\x01\n\x0e\x43onnectionStat\x12\x0c\n\x04\x61_ip\x18\x01 \x01(\t\x12\x0c\n\x04\x62_ip\x18\x02 \x01(\t\x12\x0e\n\x06\x61_port\x18\x03 \x01(\r\x12\x0e\n\x06\x62_port\x18\x04 \x01(\r\x12\x12\n\npackets_in\x18\x05 \x01(\x04\x12\x13\n\x0bpackets_out\x18\x06 \x01(\x04\x12\x0e\n\x06ts_ini\x18\x07 \x01(\x04\x12\x0e\n\x06ts_fin\x18\x08 \x01(\x04\x12\x10\n\x08\x62ytes_in\x18\t \x01(\x04\x12\x11\n\tbytes_out\x18\n \x01(\x04\"\x0e\n\x0cStatsRequest\"A\n\nStatsReply\x12\x33\n\x08\x63onnstat\x18\x01 \x03(\x0b\x32!.connstatsprotobuf.ConnectionStat2`\n\x0cStatsService\x12P\n\x0c\x43ollectStats\x12\x1f.connstatsprotobuf.StatsRequest\x1a\x1d.connstatsprotobuf.StatsReply\"\x00\x42#Z!ConnectionStats/connstatsprotobufb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x63onnstats.proto\x12\x11\x63onnstatsprotobuf\"\xd7\x01\n\x0e\x43onnectionStat\x12\x0c\n\x04hash\x18\x01 \x01(\x04\x12\r\n\x05proto\x18\x02 \x01(\t\x12\x0c\n\x04\x61_ip\x18\x03 \x01(\t\x12\x0c\n\x04\x62_ip\x18\x04 \x01(\t\x12\x0e\n\x06\x61_port\x18\x05 \x01(\r\x12\x0e\n\x06\x62_port\x18\x06 \x01(\r\x12\x12\n\npackets_in\x18\x07 \x01(\x04\x12\x13\n\x0bpackets_out\x18\x08 \x01(\x04\x12\x0e\n\x06ts_ini\x18\t \x01(\x04\x12\x0e\n\x06ts_fin\x18\n \x01(\x04\x12\x10\n\x08\x62ytes_in\x18\x0b \x01(\x04\x12\x11\n\tbytes_out\x18\x0c \x01(\x04\"\x0e\n\x0cStatsRequest\"A\n\nStatsReply\x12\x33\n\x08\x63onnstat\x18\x01 \x03(\x0b\x32!.connstatsprotobuf.ConnectionStat2`\n\x0cStatsService\x12P\n\x0c\x43ollectStats\x12\x1f.connstatsprotobuf.StatsRequest\x1a\x1d.connstatsprotobuf.StatsReply\"\x00\x42#Z!ConnectionStats/connstatsprotobufb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -23,11 +23,11 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'Z!ConnectionStats/connstatsprotobuf'
   _globals['_CONNECTIONSTAT']._serialized_start=39
-  _globals['_CONNECTIONSTAT']._serialized_end=225
-  _globals['_STATSREQUEST']._serialized_start=227
-  _globals['_STATSREQUEST']._serialized_end=241
-  _globals['_STATSREPLY']._serialized_start=243
-  _globals['_STATSREPLY']._serialized_end=308
-  _globals['_STATSSERVICE']._serialized_start=310
-  _globals['_STATSSERVICE']._serialized_end=406
+  _globals['_CONNECTIONSTAT']._serialized_end=254
+  _globals['_STATSREQUEST']._serialized_start=256
+  _globals['_STATSREQUEST']._serialized_end=270
+  _globals['_STATSREPLY']._serialized_start=272
+  _globals['_STATSREPLY']._serialized_end=337
+  _globals['_STATSSERVICE']._serialized_start=339
+  _globals['_STATSSERVICE']._serialized_end=435
 # @@protoc_insertion_point(module_scope)

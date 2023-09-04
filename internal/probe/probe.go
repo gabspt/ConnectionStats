@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 
+	//"sync"
+
 	"github.com/cilium/ebpf/perf"
 	"github.com/gabspt/ConnectionStats/clsact"
 	"github.com/gabspt/ConnectionStats/internal/flowtable"
@@ -244,7 +246,6 @@ func Run(ctx context.Context, iface netlink.Link, ft *flowtable.FlowTable) error
 				continue
 			}
 			packet.CalcStats(packetAttrs, ft)
-			//flowtable.Range()
 		}
 	}
 }
