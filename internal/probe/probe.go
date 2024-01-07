@@ -6,7 +6,8 @@ import (
 
 	//"sync"
 
-	"github.com/cilium/ebpf/perf"
+	//"github.com/cilium/ebpf/perf"
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gabspt/ConnectionStats/clsact"
 	"github.com/gabspt/ConnectionStats/internal/flowtable"
 	"github.com/gabspt/ConnectionStats/internal/packet"
@@ -203,7 +204,7 @@ func Run(ctx context.Context, iface netlink.Link, ft *flowtable.FlowTable) error
 
 	pipe := probe.bpfObjects.probeMaps.Pipe
 
-	reader, err := perf.NewReader(pipe, 10)
+	reader, err := ringbuf.NewReader(pipe)
 
 	if err != nil {
 		log.Println("Failed creating perf reader")
