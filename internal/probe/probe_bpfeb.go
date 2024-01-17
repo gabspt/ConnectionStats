@@ -12,6 +12,24 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type probeFlowId struct {
+	L_ip     struct{ In6U struct{ U6Addr8 [16]uint8 } }
+	R_ip     struct{ In6U struct{ U6Addr8 [16]uint8 } }
+	L_port   uint16
+	R_port   uint16
+	Protocol uint8
+	_        [3]byte
+}
+
+type probeFlowMetrics struct {
+	PacketsIn  uint32
+	PacketsOut uint32
+	BytesIn    uint64
+	BytesOut   uint64
+	TsStart    uint64
+	TsCurrent  uint64
+}
+
 // loadProbe returns the embedded CollectionSpec for probe.
 func loadProbe() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_ProbeBytes)
@@ -61,7 +79,8 @@ type probeProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type probeMapSpecs struct {
-	Pipe *ebpf.MapSpec `ebpf:"pipe"`
+	Flowstracker *ebpf.MapSpec `ebpf:"flowstracker"`
+	Pipe         *ebpf.MapSpec `ebpf:"pipe"`
 }
 
 // probeObjects contains all objects after they have been loaded into the kernel.
@@ -83,11 +102,13 @@ func (o *probeObjects) Close() error {
 //
 // It can be passed to loadProbeObjects or ebpf.CollectionSpec.LoadAndAssign.
 type probeMaps struct {
-	Pipe *ebpf.Map `ebpf:"pipe"`
+	Flowstracker *ebpf.Map `ebpf:"flowstracker"`
+	Pipe         *ebpf.Map `ebpf:"pipe"`
 }
 
 func (m *probeMaps) Close() error {
 	return _ProbeClose(
+		m.Flowstracker,
 		m.Pipe,
 	)
 }
