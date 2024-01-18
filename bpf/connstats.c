@@ -28,20 +28,26 @@ struct packet_t {
     bool outbound;
     __u32 len;
 };
-struct flow_id {
+struct __attribute__((packed)) flow_id {
     struct in6_addr l_ip;
     struct in6_addr r_ip;
     __be16 l_port;
     __be16 r_port;
     __u8 protocol;
 };
-struct flow_metrics {
+struct __attribute__((packed)) flow_metrics {
     __u32 packets_in;
     __u32 packets_out;
     __u64 bytes_in;
     __u64 bytes_out;
     __u64 ts_start;
     __u64 ts_current;
+    bool fin;
+};
+
+struct flow_record {
+    struct flow_id id;  
+    struct flow_metrics metrics;
 };
 
 // struct flow_stats {
@@ -155,7 +161,6 @@ static inline int handle_ip_segment(uint8_t* head, uint8_t* tail, uint32_t* offs
     }
 }
 
-//aun no manejo el fin
 static inline int update_metrics(struct packet_t* pkt) {
     //empezando a conformar el flow id
     struct flow_id flowid = {0};
@@ -177,6 +182,7 @@ static inline int update_metrics(struct packet_t* pkt) {
 
     struct flow_metrics *flowmetrics = bpf_map_lookup_elem(&flowstracker, &flowid);
     if (flowmetrics != NULL) {
+        //flow exists, update metrics
         flowmetrics->ts_current = pkt->ts;
         if (pkt->outbound == true) { //update outbound egress metrics
             flowmetrics->packets_out += 1;
@@ -186,11 +192,32 @@ static inline int update_metrics(struct packet_t* pkt) {
             flowmetrics->packets_in += 1;
             flowmetrics->bytes_in += pkt->len;
         }
+           
+        // if 2 fin packets are received, delete flow from map
+        if ((pkt->fin == true) && (pkt->ack == true) && (flowmetrics->fin == true)) {
+            //flow ended, send to userspace
+            struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
+            if (!record) {
+                //"couldn't reserve space in the ringbuf. Dropping flow");
+                return TC_ACT_OK;
+            }
+            record->id = flowid;
+            record->metrics = *flowmetrics;
+            bpf_ringbuf_submit(record, 0);
+            //delete flow from map
+            bpf_map_delete_elem(&flowstracker, &flowid);
+            return TC_ACT_OK;
+        }
+        else {
+            flowmetrics->fin = pkt->fin;
+        }
+
         long ret = bpf_map_update_elem(&flowstracker, &flowid, flowmetrics, BPF_EXIST);
         if (ret != 0) {
             bpf_printk("error updating flow %d\n", ret);
             return TC_ACT_OK;
         }
+
     } else {
         if ((pkt->syn == true) || (pkt->protocol == IPPROTO_UDP)) {
             struct flow_metrics new_flow = {0};
@@ -206,11 +233,17 @@ static inline int update_metrics(struct packet_t* pkt) {
             }
             long ret = bpf_map_update_elem(&flowstracker, &flowid, &new_flow, BPF_NOEXIST);
             if (ret != 0) {
-                bpf_printk("error updating flow %d\n", ret);
-                return TC_ACT_OK;
+                bpf_printk("error adding new flow %d\n", ret);
+                struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
+                if (!record) {
+                    //"couldn't reserve space in the ringbuf. Dropping flow");
+                    return TC_ACT_OK;
+                }
+                record->id = flowid;
+                record->metrics = new_flow;
+                bpf_ringbuf_submit(record, 0);              
             }
         }
-        return TC_ACT_OK;
     }
     return TC_ACT_OK;
 }
@@ -254,11 +287,7 @@ int connstatsin(struct __sk_buff* skb) {
         return TC_ACT_OK;
     }
 
-    // if (update_metrics(&pkt) == TC_ACT_OK) {
-    //     return TC_ACT_OK;
-    // }
-
-    if (bpf_ringbuf_output(&pipe, &pkt, sizeof(pkt), 0) < 0) {
+    if (update_metrics(&pkt) == TC_ACT_OK) {
         return TC_ACT_OK;
     }
 
@@ -304,14 +333,10 @@ int connstatsout(struct __sk_buff* skb) {
         return TC_ACT_OK;
     }
 
-    // if (update_metrics(&pkt) == TC_ACT_OK) {
-    //    return TC_ACT_OK;
-    // }
-
-    if (bpf_ringbuf_output(&pipe, &pkt, sizeof(pkt), 0) < 0) {
-        return TC_ACT_OK;
+    if (update_metrics(&pkt) == TC_ACT_OK) {
+       return TC_ACT_OK;
     }
-
+    
     return TC_ACT_OK;
 }
 

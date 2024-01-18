@@ -2,15 +2,13 @@ package probe
 
 import (
 	"context"
+	"encoding/binary"
 	"log"
+	"time"
 
-	//"sync"
-
-	//"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gabspt/ConnectionStats/clsact"
-	"github.com/gabspt/ConnectionStats/internal/flowtable"
-	"github.com/gabspt/ConnectionStats/internal/packet"
+	"github.com/gabspt/ConnectionStats/internal/timer"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -27,6 +25,11 @@ type probe struct {
 	qdisc      *clsact.ClsAct
 	bpfObjects *probeObjects
 	filters    []*netlink.BpfFilter
+}
+
+type Flowrecord struct {
+	fid probeFlowId
+	fm  probeFlowMetrics
 }
 
 func setRlimit() error {
@@ -172,15 +175,6 @@ func (p *probe) Close() error {
 		return err
 	}
 
-	// log.Println("Removing qdisc filters")
-
-	// for _, filter := range p.filters {
-	// 	if err := p.handle.FilterDel(filter); err != nil {
-	// 		log.Println("Failed deleting qdisc filters")
-	// 		return err
-	// 	}
-	// }
-
 	log.Println("Deleting handle")
 	p.handle.Delete()
 
@@ -193,60 +187,158 @@ func (p *probe) Close() error {
 	return nil
 }
 
-func Run(ctx context.Context, iface netlink.Link, ft *flowtable.FlowTable) error {
+func UnmarshalFlowRecord(in []byte) (Flowrecord, bool) {
+	//gather bits from []byte to form L_ip of type struct{ In6U struct{ U6Addr8 [16]uint8 } }
+	var l_ip struct{ In6U struct{ U6Addr8 [16]uint8 } }
+	for i := 0; i < 16; i++ {
+		l_ip.In6U.U6Addr8[i] = in[i]
+	}
+	//gather bits from []byte to form R_ip of type struct{ In6U struct{ U6Addr8 [16]uint8 } }
+	var r_ip struct{ In6U struct{ U6Addr8 [16]uint8 } }
+	for i := 0; i < 16; i++ {
+		r_ip.In6U.U6Addr8[i] = in[i+16]
+	}
+
+	// form the probeFlowId struct
+	f_id := probeFlowId{
+		L_ip:     l_ip,
+		R_ip:     r_ip,
+		L_port:   binary.BigEndian.Uint16(in[32:34]),
+		R_port:   binary.BigEndian.Uint16(in[34:36]),
+		Protocol: in[36],
+	}
+
+	// form the probeFlowMetrics struct
+	f_m := probeFlowMetrics{
+		PacketsIn:  binary.BigEndian.Uint32(in[37:41]),
+		PacketsOut: binary.BigEndian.Uint32(in[41:45]),
+		BytesIn:    binary.BigEndian.Uint64(in[45:53]),
+		BytesOut:   binary.BigEndian.Uint64(in[53:61]),
+		TsStart:    binary.BigEndian.Uint64(in[61:69]),
+		TsCurrent:  binary.BigEndian.Uint64(in[69:77]),
+		Fin:        in[77] == 1,
+	}
+
+	return Flowrecord{
+		fid: f_id,
+		fm:  f_m,
+	}, true
+}
+
+// Prune deletes stale entries (havnt been updated in more than 60 seconds) directly from the hash map Flowstracker
+func (p *probe) Prune() {
+	now := timer.GetNanosecSinceBoot()
+
+	flowstrackermap := p.bpfObjects.probeMaps.Flowstracker
+	iterator := flowstrackermap.Iterate()
+	var fid probeFlowId
+	var flowmetrics probeFlowMetrics
+	for iterator.Next(&fid, &flowmetrics) {
+		lastts := flowmetrics.TsCurrent
+		if (now-lastts)/1000000 > 60000 {
+			log.Printf("Pruning stale entry from flowstracker map: %v after %vms", fid, (now-lastts)/1000000)
+			flowstrackermap.Delete(&fid)
+		}
+	}
+}
+
+// Run starts the probe
+func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 	log.Println("Starting up the probe")
 
 	probe, err := newProbe(iface)
-
 	if err != nil {
 		return err
 	}
 
-	pipe := probe.bpfObjects.probeMaps.Pipe
+	flowstrackermap := probe.bpfObjects.probeMaps.Flowstracker
 
-	reader, err := ringbuf.NewReader(pipe)
-
-	if err != nil {
-		log.Println("Failed creating perf reader")
-		return err
-	}
-
-	c := make(chan []byte)
-
+	//evict all entries from the flowstracker map and copy to the flowtable every 5 seconds
+	tickerevict := time.NewTicker(time.Second * 5)
+	defer tickerevict.Stop()
+	//revisar esta go routine, a ver si la tengo que hacer con el mismo estilo de select que la de Prune
 	go func() {
-		for {
-			event, err := reader.Read()
-			if err != nil {
-				log.Printf("Failed reading perf event: %v", err)
-				return
+		for range tickerevict.C {
+			//evict all entries from the flowstracker map and copy to the flowtable
+			//cuando yo haga el evict cada 5s no puedo simplemente dumpear el hash map ahi sin ver lo que habia
+			//porque el flowtable tiene flows que vinieron por el ringbuf y no entraron al hasmap,
+			//entonces tengo que chequear si el flow ya esta en el flowtable y si es asi actualizarlo, cogiendo el tstart mas antiguo y tcurrent mas reciente y sumando los paquetes y bytes
+			//flowstrackermap := probe.bpfObjects.probeMaps.Flowstracker
+			iterator := flowstrackermap.Iterate()
+			var fid probeFlowId
+			var flowmetrics probeFlowMetrics
+			//iterate over the hash map and copy all entries to the flowtable
+			for iterator.Next(&fid, &flowmetrics) {
+				// do lookup if flow id exists in the flowtable ft
+				value, found := ft.Load(fid)
+				if !found {
+					ft.Store(fid, flowmetrics)
+				} else {
+					existingflowm, ok := value.(probeFlowMetrics)
+					if ok {
+						flowmetrics.PacketsIn += existingflowm.PacketsIn
+						flowmetrics.PacketsOut += existingflowm.PacketsOut
+						flowmetrics.BytesIn += existingflowm.BytesIn
+						flowmetrics.BytesOut += existingflowm.BytesOut
+						if existingflowm.TsStart < flowmetrics.TsStart {
+							flowmetrics.TsStart = existingflowm.TsStart
+						}
+						if existingflowm.TsCurrent > flowmetrics.TsCurrent {
+							flowmetrics.TsCurrent = existingflowm.TsCurrent
+						}
+						ft.Store(fid, flowmetrics)
+					} else {
+						log.Printf("Could not convert value to probeFlowMetrics: %+v, store anyway", value)
+						ft.Store(fid, flowmetrics)
+					}
+				}
 			}
-			c <- event.RawSample //the event(network packet) is in c
 		}
 	}()
 
-	//flowtable := flowtable.NewFlowTable()
-	//connection := flowtable.NewConnection()
+	pipe := probe.bpfObjects.probeMaps.Pipe
+	ringreader, err := ringbuf.NewReader(pipe)
+	if err != nil {
+		log.Println("Failed creating ringbuf reader")
+		return err
+	}
+
+	//revisar esta go routine, a ver si la tengo que hacer con el mismo estilo de select que la de Prune
+	go func() {
+		for {
+			event, err := ringreader.Read()
+			if err != nil {
+				log.Printf("Failed reading ringbuf event: %v", err)
+				return
+			}
+			flowrecord, ok := UnmarshalFlowRecord(event.RawSample)
+			if !ok {
+				log.Printf("Could not unmarshall flow record: %+v", event.RawSample)
+			}
+
+			// Copiar directamente, con esto si existe en el flowtable lo actualiza y si no existe lo agrega
+			ft.Store(flowrecord.fid, flowrecord.fm)
+		}
+	}()
 
 	go func() {
-		for range ft.Ticker.C {
-			ft.Prune()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				probe.Prune()
+			}
 		}
 	}()
 
 	for {
-		select {
-		case <-ctx.Done():
-			// reader.Close()
-			ft.Ticker.Stop()
-			return probe.Close()
 
-		case pkt := <-c:
-			packetAttrs, ok := packet.UnmarshalBinary(pkt)
-			if !ok {
-				log.Printf("Could not unmarshall packet: %+v", pkt)
-				continue
-			}
-			packet.CalcStats(packetAttrs, ft)
-		}
+		<-ctx.Done()
+
+		ft.Ticker.Stop()
+		tickerevict.Stop()
+		return probe.Close()
+
 	}
 }

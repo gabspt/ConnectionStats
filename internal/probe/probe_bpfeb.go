@@ -18,7 +18,6 @@ type probeFlowId struct {
 	L_port   uint16
 	R_port   uint16
 	Protocol uint8
-	_        [3]byte
 }
 
 type probeFlowMetrics struct {
@@ -28,6 +27,7 @@ type probeFlowMetrics struct {
 	BytesOut   uint64
 	TsStart    uint64
 	TsCurrent  uint64
+	Fin        bool
 }
 
 // loadProbe returns the embedded CollectionSpec for probe.

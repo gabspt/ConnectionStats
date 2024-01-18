@@ -38,11 +38,10 @@ def run():
             # print("Greeter client received: " + response.message)
 
             # Crear listas vacías para almacenar los datos
-            Hash = []
             Protocol = []
-            A = []
+            Local = []
             #a = []
-            B = []
+            Remote = []
             #b = []
             Inpps = []
             Outpps = []
@@ -52,12 +51,11 @@ def run():
             InPoutP = []
             # usar response para calcular las estadisticas
             for connection in response.connstat:
-                Hash.append(connection.hash)
                 Protocol.append(connection.proto)
-                A.append(f"{convert_to_ipv4(connection.a_ip)}:{connection.a_port}")
-                B.append(f"{convert_to_ipv4(connection.b_ip)}:{connection.b_port}")
+                Local.append(f"{convert_to_ipv4(connection.l_ip)}:{connection.l_port}")
+                Remote.append(f"{convert_to_ipv4(connection.r_port_ip)}:{connection.r_port}")
 
-                time_diff = (connection.ts_fin - connection.ts_ini) / 1000000000
+                time_diff = (connection.ts_current - connection.ts_start) / 1000000000
                 if time_diff > 0:
                     inpps = connection.packets_in / time_diff  
                     outpps = connection.packets_out / time_diff   
@@ -97,10 +95,9 @@ def run():
                 # print(f"inPoutP: {inPoutP:.2f} ")
 
             df = pd.DataFrame({
-                'Hash': Hash,
                 'Protocol': Protocol,
-                'A': A,
-                'B': B,
+                'Local': Local,
+                'Remote': Remote,
                 'inpps': inpps,
                 'outpps': outpps,
                 'inBpp': inBpp,
@@ -108,7 +105,7 @@ def run():
                 'inBoutB': inBoutB,
                 'inPoutP': inPoutP
             })
-            df.set_index('Hash', inplace=True)
+            #df.set_index('Hash', inplace=True)
 
             
             print(df)  
@@ -118,7 +115,7 @@ def run():
             df.to_csv('datos.csv', index=False)  
                
 
-            time.sleep(6)
+            time.sleep(7)
 
 
 if __name__ == "__main__":

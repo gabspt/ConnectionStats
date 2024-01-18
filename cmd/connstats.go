@@ -10,10 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	//"sync"
-
 	pb "github.com/gabspt/ConnectionStats/connstatsprotobuf"
-	"github.com/gabspt/ConnectionStats/internal/flowtable"
 	"github.com/gabspt/ConnectionStats/internal/probe"
 	"github.com/vishvananda/netlink"
 	"google.golang.org/grpc"
@@ -22,7 +19,7 @@ import (
 var (
 	ifaceFlag = flag.String("interface", "enp0s3", "interface to attach the probe to") // TODO: change default value to eth0
 	port      = flag.Int("port", 50051, "The server port")
-	ft        = flowtable.NewFlowTable()
+	ft        = probe.NewFlowTable()
 	//ftMutex   sync.RWMutex
 	//ctx       context.Context
 	//cancel    context.CancelFunc
@@ -30,7 +27,6 @@ var (
 
 // signalHandler catches SIGINT and SIGTERM then exits the program
 func signalHandler(cancel context.CancelFunc) {
-	//func signalHandler() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -56,41 +52,27 @@ func displayInterfaces() {
 	os.Exit(1)
 }
 
-//func createContextAndCancel() (context.Context, context.CancelFunc) {
-//	ctx := context.Background()
-//	ctx, cancel := context.WithCancel(ctx)
-//	return ctx, cancel
-//}
-
 // server is used to implement ConnStatServer.
 type server struct {
 	pb.UnimplementedStatsServiceServer
-	//ft *flowtable.FlowTable
 }
 
 func (s *server) CollectStats(ctx context.Context, req *pb.StatsRequest) (*pb.StatsReply, error) {
 	log.Printf("Received request")
-	//fmt.Printf("fmt Print")
 	response := &pb.StatsReply{}
-	//response.Connstat=ft.GetConnList()
-	//connlist := s.ft.GetConnList()
-	//ftMutex.RLock()
-	//defer ftMutex.RUnlock()
 
 	connlist := ft.GetConnList()
-	//fmt.Printf("connlist %v\n", connlist)
 	for _, conn := range connlist {
 		connMsg := &pb.ConnectionStat{
-			Hash:       conn.Hash,
-			Proto:      conn.Proto,
-			AIp:        conn.AIp.String(),
-			BIp:        conn.BIp.String(),
-			APort:      uint32(conn.APort),
-			BPort:      uint32(conn.BPort),
+			Protocol:   conn.Protocol,
+			LIp:        conn.L_ip.String(),
+			RIp:        conn.R_ip.String(),
+			LPort:      uint32(conn.L_Port),
+			RPort:      uint32(conn.R_Port),
 			PacketsIn:  conn.Packets_in,
 			PacketsOut: conn.Packets_out,
-			TsIni:      conn.Ts_ini,
-			TsFin:      conn.Ts_fin,
+			TsStart:    conn.Ts_start,
+			TsCurrent:  conn.Ts_current,
 			BytesIn:    conn.Bytes_in,
 			BytesOut:   conn.Bytes_out,
 		}

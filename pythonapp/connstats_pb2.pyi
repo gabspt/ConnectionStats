@@ -6,32 +6,30 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class ConnectionStat(_message.Message):
-    __slots__ = ["hash", "proto", "a_ip", "b_ip", "a_port", "b_port", "packets_in", "packets_out", "ts_ini", "ts_fin", "bytes_in", "bytes_out"]
-    HASH_FIELD_NUMBER: _ClassVar[int]
-    PROTO_FIELD_NUMBER: _ClassVar[int]
-    A_IP_FIELD_NUMBER: _ClassVar[int]
-    B_IP_FIELD_NUMBER: _ClassVar[int]
-    A_PORT_FIELD_NUMBER: _ClassVar[int]
-    B_PORT_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ["protocol", "l_ip", "r_ip", "l_port", "r_port", "packets_in", "packets_out", "ts_start", "ts_current", "bytes_in", "bytes_out"]
+    PROTOCOL_FIELD_NUMBER: _ClassVar[int]
+    L_IP_FIELD_NUMBER: _ClassVar[int]
+    R_IP_FIELD_NUMBER: _ClassVar[int]
+    L_PORT_FIELD_NUMBER: _ClassVar[int]
+    R_PORT_FIELD_NUMBER: _ClassVar[int]
     PACKETS_IN_FIELD_NUMBER: _ClassVar[int]
     PACKETS_OUT_FIELD_NUMBER: _ClassVar[int]
-    TS_INI_FIELD_NUMBER: _ClassVar[int]
-    TS_FIN_FIELD_NUMBER: _ClassVar[int]
+    TS_START_FIELD_NUMBER: _ClassVar[int]
+    TS_CURRENT_FIELD_NUMBER: _ClassVar[int]
     BYTES_IN_FIELD_NUMBER: _ClassVar[int]
     BYTES_OUT_FIELD_NUMBER: _ClassVar[int]
-    hash: int
-    proto: str
-    a_ip: str
-    b_ip: str
-    a_port: int
-    b_port: int
+    protocol: str
+    l_ip: str
+    r_ip: str
+    l_port: int
+    r_port: int
     packets_in: int
     packets_out: int
-    ts_ini: int
-    ts_fin: int
+    ts_start: int
+    ts_current: int
     bytes_in: int
     bytes_out: int
-    def __init__(self, hash: _Optional[int] = ..., proto: _Optional[str] = ..., a_ip: _Optional[str] = ..., b_ip: _Optional[str] = ..., a_port: _Optional[int] = ..., b_port: _Optional[int] = ..., packets_in: _Optional[int] = ..., packets_out: _Optional[int] = ..., ts_ini: _Optional[int] = ..., ts_fin: _Optional[int] = ..., bytes_in: _Optional[int] = ..., bytes_out: _Optional[int] = ...) -> None: ...
+    def __init__(self, protocol: _Optional[str] = ..., l_ip: _Optional[str] = ..., r_ip: _Optional[str] = ..., l_port: _Optional[int] = ..., r_port: _Optional[int] = ..., packets_in: _Optional[int] = ..., packets_out: _Optional[int] = ..., ts_start: _Optional[int] = ..., ts_current: _Optional[int] = ..., bytes_in: _Optional[int] = ..., bytes_out: _Optional[int] = ...) -> None: ...
 
 class StatsRequest(_message.Message):
     __slots__ = []

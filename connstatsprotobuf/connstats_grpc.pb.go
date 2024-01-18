@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.12.4
-// source: connstats.proto
+// source: connstatsprotobuf/connstats.proto
 
 package connstatsprotobuf
 
@@ -103,5 +103,5 @@ var StatsService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "connstats.proto",
+	Metadata: "connstatsprotobuf/connstats.proto",
 }
