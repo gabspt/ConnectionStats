@@ -114,3 +114,62 @@ func (table *FlowTable) GetConnList() []Connection {
 	})
 	return connlist
 }
+
+// UpdateFlowTable updates the FlowTable and returns a boolean indicating if the flow was updated or not
+func (table *FlowTable) UpdateFlowTable(key, value interface{}) bool {
+	fid, okid := key.(probeFlowId)
+	fm, okm := value.(probeFlowMetrics)
+
+	if okid && okm {
+		value, found := table.Load(fid)
+		if !found { // Flow does not exist in the flow table add tal cual
+			table.Store(fid, fm)
+		} else {
+			existingflowm, ok := value.(probeFlowMetrics)
+			if ok {
+				//log.Printf("Existing flow key: %+v,  metrics: %+v", fid, existingflowm)
+				//log.Printf("Incoming flow key: %+v,  metrics: %+v", fid, fm)
+				fm.PacketsIn += existingflowm.PacketsIn
+				fm.PacketsOut += existingflowm.PacketsOut
+				fm.BytesIn += existingflowm.BytesIn
+				fm.BytesOut += existingflowm.BytesOut
+				if existingflowm.TsStart < fm.TsStart {
+					fm.TsStart = existingflowm.TsStart
+				}
+				if existingflowm.TsCurrent > fm.TsCurrent {
+					fm.TsCurrent = existingflowm.TsCurrent
+				}
+				table.Store(fid, fm)
+				//log.Printf("Stored flow key: %+v,  metrics: %+v", fid, fm)
+			} else {
+				log.Printf("Could not convert existing value to probeFlowMetrics: %+v", value)
+				//ft.Store(fid, flowmetrics) //decidir si en este caso se queda la tabla como estaba o se le pone lo del flowstracker, ahora mismo se queda como estaba, maybe ca,biar dependiendo de experimentos
+			}
+		}
+
+	} else {
+		log.Printf("Could not convert key or value to probeFlowId or probeFlowMetrics: %+v, %+v", key, value)
+		return false
+	}
+	return true
+}
+
+// Size returns the size of the FlowTable
+func (ft *FlowTable) Size() int {
+	count := 0
+	ft.Range(func(key, value interface{}) bool {
+		count++
+		return true
+	})
+	return count
+}
+
+// PrintFlowTable prints the FlowTable
+func (ft *FlowTable) PrintFlowTable() {
+	ft.Range(func(key, value interface{}) bool {
+		log.Printf("Key: %v, Value: %v\n", key, value)
+		return true
+	})
+	log.Printf("FlowTable size: %v\n", ft.Size())
+	log.Printf("")
+}

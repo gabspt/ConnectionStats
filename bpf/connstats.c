@@ -35,7 +35,7 @@ struct __attribute__((packed)) flow_id {
     __be16 r_port;
     __u8 protocol;
 };
-struct __attribute__((packed)) flow_metrics {
+struct flow_metrics {
     __u32 packets_in;
     __u32 packets_out;
     __u64 bytes_in;
@@ -192,7 +192,8 @@ static inline int update_metrics(struct packet_t* pkt) {
             flowmetrics->packets_in += 1;
             flowmetrics->bytes_in += pkt->len;
         }
-           
+        //check if flow ended
+
         // if 2 fin packets are received, delete flow from map
         if ((pkt->fin == true) && (pkt->ack == true) && (flowmetrics->fin == true)) {
             //flow ended, send to userspace
@@ -207,8 +208,7 @@ static inline int update_metrics(struct packet_t* pkt) {
             //delete flow from map
             bpf_map_delete_elem(&flowstracker, &flowid);
             return TC_ACT_OK;
-        }
-        else {
+        } else {
             flowmetrics->fin = pkt->fin;
         }
 
@@ -219,31 +219,42 @@ static inline int update_metrics(struct packet_t* pkt) {
         }
 
     } else {
-        if ((pkt->syn == true) || (pkt->protocol == IPPROTO_UDP)) {
-            struct flow_metrics new_flow = {0};
-            new_flow.ts_start = pkt->ts;
-            new_flow.ts_current = pkt->ts;
-            if (pkt->outbound == true) { //update outbound egress metrics
-                new_flow.packets_out = 1;
-                new_flow.bytes_out = pkt->len;
-            } 
-            else { //update inbound ingress metrics
-                new_flow.packets_in = 1;
-                new_flow.bytes_in = pkt->len;
-            }
-            long ret = bpf_map_update_elem(&flowstracker, &flowid, &new_flow, BPF_NOEXIST);
+        //flow doesn't exist, create new flow
+        struct flow_metrics new_flowm = {0};
+        new_flowm.ts_start = pkt->ts;    
+        new_flowm.ts_current = pkt->ts;
+        if (pkt->outbound == true) { //update outbound egress metrics
+            new_flowm.packets_out = 1;
+            new_flowm.bytes_out = pkt->len;
+        } else { //update inbound ingress metrics
+            new_flowm.packets_in = 1;
+            new_flowm.bytes_in = pkt->len;
+        }
+        //if ((pkt->syn == true && pkt->ack == false) || (pkt->protocol == IPPROTO_UDP)) { //new tcp syn or udp connection, add to flowstracker map
+            //not using syn at the moment bc i was loosing packets, maybe hablar con el tutor sobre esto y ver si es necesario usarlo para algo
+            long ret = bpf_map_update_elem(&flowstracker, &flowid, &new_flowm, BPF_NOEXIST);
             if (ret != 0) {
-                bpf_printk("error adding new flow %d\n", ret);
+                bpf_printk("error adding new flow %d\n", ret); //maybe because map is full
+                //send to userspace via ringbuf to avoid losing flow
                 struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
                 if (!record) {
                     //"couldn't reserve space in the ringbuf. Dropping flow");
                     return TC_ACT_OK;
                 }
                 record->id = flowid;
-                record->metrics = new_flow;
+                record->metrics = new_flowm;
                 bpf_ringbuf_submit(record, 0);              
             }
-        }
+       // } //else { //it's tcp but no syn, send to userspace in case its a flow that was first sent to ringbuf
+        //     struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
+        //     if (!record) {
+        //         //"couldn't reserve space in the ringbuf. Dropping flow");
+        //         return TC_ACT_OK;
+        //     }
+        //     record->id = flowid;
+        //     record->metrics = new_flowm;
+        //     bpf_ringbuf_submit(record, 0);
+        // }
     }
     return TC_ACT_OK;
 }

@@ -28,6 +28,7 @@ type probeFlowMetrics struct {
 	TsStart    uint64
 	TsCurrent  uint64
 	Fin        bool
+	_          [7]byte
 }
 
 // loadProbe returns the embedded CollectionSpec for probe.

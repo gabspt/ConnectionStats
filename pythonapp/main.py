@@ -4,8 +4,6 @@ import logging
 import time
 import ipaddress
 import pandas as pd
-
-
 import grpc
 import connstats_pb2
 import connstats_pb2_grpc
@@ -23,9 +21,7 @@ def convert_to_ipv4(ipv6_address):
 
 def run():
    
-    print("Will try to start ...")
-
-    
+    print("Try to start ...")
 
     with grpc.insecure_channel("192.168.1.204:50051") as channel:
         stub = connstats_pb2_grpc.StatsServiceStub(channel)
@@ -33,16 +29,17 @@ def run():
         while True:
             response = stub.CollectStats(connstats_pb2.StatsRequest())
             print("Server response received")
-            #print(response.connstat)
-            #response = stub.SayHelloAgain(helloworld_pb2.HelloRequest(name='Gaby'))
-            # print("Greeter client received: " + response.message)
 
-            # Crear listas vacías para almacenar los datos
+            # Crear listas vacías para almacenar los datos estadísticos
             Protocol = []
             Local = []
-            #a = []
             Remote = []
-            #b = []
+            PacketsIn = []
+            PacketsOut = []
+            BytesIn = []
+            BytesOut = []
+            TsStart = []
+            TsCurrent = []
             Inpps = []
             Outpps = []
             InBpp = []
@@ -51,68 +48,80 @@ def run():
             InPoutP = []
             # usar response para calcular las estadisticas
             for connection in response.connstat:
-                Protocol.append(connection.proto)
+                Protocol.append(connection.protocol)
                 Local.append(f"{convert_to_ipv4(connection.l_ip)}:{connection.l_port}")
-                Remote.append(f"{convert_to_ipv4(connection.r_port_ip)}:{connection.r_port}")
-
+                Remote.append(f"{convert_to_ipv4(connection.r_ip)}:{connection.r_port}")
+                PacketsIn.append(connection.packets_in)
+                PacketsOut.append(connection.packets_out)
+                BytesIn.append(connection.bytes_in)
+                BytesOut.append(connection.bytes_out)
+                TsStart.append(connection.ts_start)
+                TsCurrent.append(connection.ts_current)
+                
                 time_diff = (connection.ts_current - connection.ts_start) / 1000000000
-                if time_diff > 0:
-                    inpps = connection.packets_in / time_diff  
-                    outpps = connection.packets_out / time_diff   
+                if time_diff> 0:
+                    Inpps.append(connection.packets_in / time_diff)
+                    Outpps.append(connection.packets_out / time_diff)
                 else:
-                    inpps = 0.0
-                    outpps = 0.0
-                Inpps.append(inpps)
-                Outpps.append(outpps)
+                    #print this connection attributes in one line for debug   
+                    print("connection.protocol: ", connection.protocol)
+                    print("connection.l_ip: ", connection.l_ip)
+                    print("connection.l_port: ", connection.l_port)
+                    print("connection.r_ip: ", connection.r_ip)
+                    print("connection.r_port: ", connection.r_port)
+                    print("connection.packets_in: ", connection.packets_in)
+                    print("connection.packets_out: ", connection.packets_out)
+                    print("connection.ts_start: ", connection.ts_start)
+                    print("connection.ts_current: ", connection.ts_current)
+                 
+                    Inpps.append(0)
+                    Outpps.append(0)
                 
                 if connection.packets_in > 0:
-                    inBpp = connection.bytes_in / connection.packets_in
+                    InBpp.append(connection.bytes_in / connection.packets_in)
                 else:
-                    inBpp = 0.0
-                InBpp.append(inBpp)
+                    InBpp.append(0)
                 
                 if connection.packets_out > 0:
-                    outBpp = connection.bytes_out / connection.packets_out
-                    inPoutP = connection.packets_in / connection.packets_out
+                    OutBpp.append(connection.bytes_out / connection.packets_out)
+                    InPoutP.append(connection.packets_in / connection.packets_out)
+                    InBoutB.append(connection.bytes_in / connection.bytes_out)
                 else:
-                    outBpp = 0.0
-                    inPoutP = 0.0
-                OutBpp.append(outBpp)
-                InPoutP.append(inPoutP)
+                    OutBpp.append(0)
+                    InPoutP.append(0)
+                    InBoutB.append(0)
 
-                if connection.bytes_out > 0:
-                    inBoutB = connection.bytes_in / connection.bytes_out
-                else:
-                    inBoutB = 0.0
-                InBoutB.append(inBoutB)
-
-                # print(f"A: {convert_to_ipv4(connection.a_ip)}:{connection.a_port}, B: {convert_to_ipv4(connection.b_ip)}:{connection.b_port} ", end="")
-                # print(f"inpps: {inpps:.2f} ", end="")
-                # print(f"outpps: {outpps:.2f} ", end="")
-                # print(f"inBpp: {inBpp:.2f} ", end="")
-                # print(f"outBpp: {outBpp:.2f} ", end="")
-                # print(f"inBoutB: {inBoutB:.2f} ", end="")
-                # print(f"inPoutP: {inPoutP:.2f} ")
+            dfStats = pd.DataFrame({
+                'Protocol': Protocol,
+                'Local': Local,
+                'Remote': Remote,
+                'inpps': Inpps,
+                'outpps': Outpps,
+                'inBpp': InBpp,
+                'outBpp': OutBpp,
+                'inBoutB': InBoutB,
+                'inPoutP': InPoutP
+            })
 
             df = pd.DataFrame({
                 'Protocol': Protocol,
                 'Local': Local,
                 'Remote': Remote,
-                'inpps': inpps,
-                'outpps': outpps,
-                'inBpp': inBpp,
-                'outBpp': outBpp,
-                'inBoutB': inBoutB,
-                'inPoutP': inPoutP
+                'PacketsIN': PacketsIn,
+                'PacketsOUT': PacketsOut,
+                'BytesIN': BytesIn,
+                'BytesOUT': BytesOut,
+                'TsStart': TsStart,
+                'TsCurrent': TsCurrent
             })
             #df.set_index('Hash', inplace=True)
 
             
-            print(df)  
+            print(dfStats)  
             print("")  
 
             # Guardar el DataFrame en un archivo CSV
-            df.to_csv('datos.csv', index=False)  
+            dfStats.to_csv('datos.csv', index=False)  
                
 
             time.sleep(7)

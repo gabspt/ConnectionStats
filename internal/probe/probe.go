@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gabspt/ConnectionStats/clsact"
 	"github.com/gabspt/ConnectionStats/internal/timer"
@@ -14,8 +15,6 @@ import (
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go probe ../../bpf/connstats.c - -O3  -Wall -Werror -Wno-address-of-packed-member
-
-//
 
 const tenMegaBytes = 1024 * 1024 * 10 // 10MB
 
@@ -210,14 +209,16 @@ func UnmarshalFlowRecord(in []byte) (Flowrecord, bool) {
 
 	// form the probeFlowMetrics struct
 	f_m := probeFlowMetrics{
-		PacketsIn:  binary.BigEndian.Uint32(in[37:41]),
-		PacketsOut: binary.BigEndian.Uint32(in[41:45]),
-		BytesIn:    binary.BigEndian.Uint64(in[45:53]),
-		BytesOut:   binary.BigEndian.Uint64(in[53:61]),
-		TsStart:    binary.BigEndian.Uint64(in[61:69]),
-		TsCurrent:  binary.BigEndian.Uint64(in[69:77]),
-		Fin:        in[77] == 1,
+		PacketsIn:  binary.LittleEndian.Uint32(in[40:44]),
+		PacketsOut: binary.LittleEndian.Uint32(in[44:48]),
+		BytesIn:    binary.LittleEndian.Uint64(in[48:56]),
+		BytesOut:   binary.LittleEndian.Uint64(in[56:64]),
+		TsStart:    binary.LittleEndian.Uint64(in[64:72]),
+		TsCurrent:  binary.LittleEndian.Uint64(in[72:80]),
+		Fin:        in[80] == 1,
 	}
+	//log.Printf("Binary: L_ip %v R_ip %v L_port %v R_port %v Protocol %v", in[0:16], in[16:32], in[32:34], in[34:36], in[36])
+	//log.Printf("Binary: PacketsIn %v PacketsOut %v BytesIn %v BytesOut %v TsStart %v TsCurrent %v Fin %v", in[37:41], in[41:45], in[45:53], in[53:61], in[61:69], in[69:77], in[77])
 
 	return Flowrecord{
 		fid: f_id,
@@ -226,8 +227,7 @@ func UnmarshalFlowRecord(in []byte) (Flowrecord, bool) {
 }
 
 // Prune deletes stale entries (havnt been updated in more than 60 seconds) directly from the hash map Flowstracker
-func (p *probe) Prune() {
-	now := timer.GetNanosecSinceBoot()
+func (p *probe) Prune(ft *FlowTable) {
 
 	flowstrackermap := p.bpfObjects.probeMaps.Flowstracker
 	iterator := flowstrackermap.Iterate()
@@ -235,9 +235,12 @@ func (p *probe) Prune() {
 	var flowmetrics probeFlowMetrics
 	for iterator.Next(&fid, &flowmetrics) {
 		lastts := flowmetrics.TsCurrent
+		now := timer.GetNanosecSinceBoot()
 		if (now-lastts)/1000000 > 60000 {
-			log.Printf("Pruning stale entry from flowstracker map: %v after %vms", fid, (now-lastts)/1000000)
+			log.Printf("Pruning stale entry from flowstracker map: %v with tscurr %v at %vtime after %vms", fid, lastts, now, (now-lastts)/1000000)
 			flowstrackermap.Delete(&fid)
+			//Delete also from the flowtable
+			ft.Remove(fid)
 		}
 	}
 }
@@ -259,7 +262,6 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 	//revisar esta go routine, a ver si la tengo que hacer con el mismo estilo de select que la de Prune
 	go func() {
 		for range tickerevict.C {
-			//evict all entries from the flowstracker map and copy to the flowtable
 			//cuando yo haga el evict cada 5s no puedo simplemente dumpear el hash map ahi sin ver lo que habia
 			//porque el flowtable tiene flows que vinieron por el ringbuf y no entraron al hasmap,
 			//entonces tengo que chequear si el flow ya esta en el flowtable y si es asi actualizarlo, cogiendo el tstart mas antiguo y tcurrent mas reciente y sumando los paquetes y bytes
@@ -267,32 +269,22 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 			iterator := flowstrackermap.Iterate()
 			var fid probeFlowId
 			var flowmetrics probeFlowMetrics
-			//iterate over the hash map and copy all entries to the flowtable
+			//iterate over the hash map flowstrackermap
 			for iterator.Next(&fid, &flowmetrics) {
-				// do lookup if flow id exists in the flowtable ft
-				value, found := ft.Load(fid)
-				if !found {
-					ft.Store(fid, flowmetrics)
-				} else {
-					existingflowm, ok := value.(probeFlowMetrics)
-					if ok {
-						flowmetrics.PacketsIn += existingflowm.PacketsIn
-						flowmetrics.PacketsOut += existingflowm.PacketsOut
-						flowmetrics.BytesIn += existingflowm.BytesIn
-						flowmetrics.BytesOut += existingflowm.BytesOut
-						if existingflowm.TsStart < flowmetrics.TsStart {
-							flowmetrics.TsStart = existingflowm.TsStart
-						}
-						if existingflowm.TsCurrent > flowmetrics.TsCurrent {
-							flowmetrics.TsCurrent = existingflowm.TsCurrent
-						}
-						ft.Store(fid, flowmetrics)
-					} else {
-						log.Printf("Could not convert value to probeFlowMetrics: %+v, store anyway", value)
-						ft.Store(fid, flowmetrics)
-					}
+				//lookup if flow id exists in the flowtable ft and update accordingly
+				//if true to UpdateFlowTable (FlowTable updated successfully), delete packets and bytes metrics from flowstrackermap
+				updated := ft.UpdateFlowTable(fid, flowmetrics)
+				if updated {
+					flowmetrics.PacketsIn = 0
+					flowmetrics.PacketsOut = 0
+					flowmetrics.BytesIn = 0
+					flowmetrics.BytesOut = 0
+					flowstrackermap.Update(&fid, &flowmetrics, ebpf.UpdateExist)
 				}
 			}
+			log.Printf("FlowTable size: %v\n", ft.Size())
+
+			log.Printf(" ")
 		}
 	}()
 
@@ -311,13 +303,22 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 				log.Printf("Failed reading ringbuf event: %v", err)
 				return
 			}
+			log.Printf("Pkt received from ringbuf: %+v", event.RawSample)
 			flowrecord, ok := UnmarshalFlowRecord(event.RawSample)
 			if !ok {
 				log.Printf("Could not unmarshall flow record: %+v", event.RawSample)
+				continue
 			}
-
+			log.Printf("Flowrecord unmarshalled: %+v", flowrecord)
 			// Copiar directamente, con esto si existe en el flowtable lo actualiza y si no existe lo agrega
-			ft.Store(flowrecord.fid, flowrecord.fm)
+			//ft.Store(flowrecord.fid, flowrecord.fm)
+			// if flow record fin is true, delete from flow table
+			if flowrecord.fm.Fin {
+				ft.Remove(flowrecord.fid)
+			} else {
+				// if flow record fin is false, update flow table
+				ft.UpdateFlowTable(flowrecord.fid, flowrecord.fm)
+			}
 		}
 	}()
 
@@ -327,7 +328,7 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 			case <-ctx.Done():
 				return
 			default:
-				probe.Prune()
+				probe.Prune(ft)
 			}
 		}
 	}()
