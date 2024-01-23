@@ -7,9 +7,25 @@ import pandas as pd
 import grpc
 import connstats_pb2
 import connstats_pb2_grpc
+import argparse
 
-REFRESH_TIME = 7  # seconds
-SERVER_IP_PORT = "192.168.1.204:50051"
+# Create the parser
+parser = argparse.ArgumentParser(description='Python client for the connstats service')
+
+# Add server_ip argument
+#parser.add_argument('--server_ip', type=str, default='192.168.1.204', help='grpc server ip address')
+parser.add_argument('--server_ip', type=str, required=True, help='grpc server ip address')
+parser.add_argument('--rtime', type=int, default=7, help='refresh time in seconds to collect the stats')
+
+# Analize the arguments passed to the script
+args = parser.parse_args()
+
+# Assign the arguments to variables
+server_ip = args.server_ip
+rtime = args.rtime
+
+REFRESH_TIME = rtime  # seconds
+SERVER_IP_PORT = f"{server_ip}:50051"
 
 def convert_to_ipv4(ipv6_address):
     try:

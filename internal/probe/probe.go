@@ -306,12 +306,12 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 			log.Printf("Pkt received from ringbuf: %+v", event.RawSample)
 			flowrecord, ok := UnmarshalFlowRecord(event.RawSample)
 			if !ok {
-				log.Printf("Could not unmarshall flow record: %+v", event.RawSample)
+				//log.Printf("Could not unmarshall flow record: %+v", event.RawSample)
 				continue
 			}
-			log.Printf("Flowrecord unmarshalled: %+v", flowrecord)
-			// Copiar directamente, con esto si existe en el flowtable lo actualiza y si no existe lo agrega
-			//ft.Store(flowrecord.fid, flowrecord.fm)
+			//log.Printf("Flowrecord unmarshalled: %+v", flowrecord)
+			//ft.Store(flowrecord.fid, flowrecord.fm) // Copiar directamente, con esto si existe en el flowtable lo actualiza y si no existe lo agrega
+
 			// if flow record fin is true, delete from flow table
 			if flowrecord.fm.Fin {
 				ft.Remove(flowrecord.fid)
