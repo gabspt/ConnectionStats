@@ -8,6 +8,9 @@ import grpc
 import connstats_pb2
 import connstats_pb2_grpc
 
+REFRESH_TIME = 7  # seconds
+SERVER_IP_PORT = "192.168.1.204:50051"
+
 def convert_to_ipv4(ipv6_address):
     try:
         ipv6 = ipaddress.IPv6Address(ipv6_address)
@@ -21,14 +24,21 @@ def convert_to_ipv4(ipv6_address):
 
 def run():
    
-    print("Try to start ...")
+    print("Will try to collect stats ...")
 
-    with grpc.insecure_channel("192.168.1.204:50051") as channel:
+    with grpc.insecure_channel(SERVER_IP_PORT) as channel:
         stub = connstats_pb2_grpc.StatsServiceStub(channel)
         
         while True:
-            response = stub.CollectStats(connstats_pb2.StatsRequest())
-            print("Server response received")
+            try:
+                response = stub.CollectStats(connstats_pb2.StatsRequest())
+                print("Server response received")
+            except grpc._channel._InactiveRpcError as e:
+                #print(f"Error failed to connect with the remote server: {e}")
+                print(f"Error failed to connect with the remote server")
+                time.sleep(REFRESH_TIME)
+                continue  # Vuelve al inicio del bucle while para intentar de nuevo
+            
 
             # Crear listas vacías para almacenar los datos estadísticos
             Protocol = []
@@ -60,8 +70,8 @@ def run():
                 
                 time_diff = (connection.ts_current - connection.ts_start) / 1000000000
                 if time_diff> 0:
-                    Inpps.append(connection.packets_in / time_diff)
-                    Outpps.append(connection.packets_out / time_diff)
+                    Inpps.append(round(connection.packets_in / time_diff, 2))
+                    Outpps.append(round(connection.packets_out / time_diff, 2))
                 else:
                     #print this connection attributes in one line for debug   
                     print("connection.protocol: ", connection.protocol)
@@ -78,14 +88,14 @@ def run():
                     Outpps.append(0)
                 
                 if connection.packets_in > 0:
-                    InBpp.append(connection.bytes_in / connection.packets_in)
+                    InBpp.append(round(connection.bytes_in / connection.packets_in, 2))
                 else:
                     InBpp.append(0)
                 
                 if connection.packets_out > 0:
-                    OutBpp.append(connection.bytes_out / connection.packets_out)
-                    InPoutP.append(connection.packets_in / connection.packets_out)
-                    InBoutB.append(connection.bytes_in / connection.bytes_out)
+                    OutBpp.append(round(connection.bytes_out / connection.packets_out, 2))
+                    InPoutP.append(round(connection.packets_in / connection.packets_out, 2))
+                    InBoutB.append(round(connection.bytes_in / connection.bytes_out, 2))
                 else:
                     OutBpp.append(0)
                     InPoutP.append(0)
@@ -114,9 +124,9 @@ def run():
                 'TsStart': TsStart,
                 'TsCurrent': TsCurrent
             })
-            #df.set_index('Hash', inplace=True)
-
-            
+                        
+            print(df)  
+            print("")  
             print(dfStats)  
             print("")  
 
@@ -124,7 +134,7 @@ def run():
             dfStats.to_csv('datos.csv', index=False)  
                
 
-            time.sleep(7)
+            time.sleep(REFRESH_TIME)
 
 
 if __name__ == "__main__":

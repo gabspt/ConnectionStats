@@ -17,12 +17,9 @@ import (
 )
 
 var (
-	ifaceFlag = flag.String("interface", "enp0s3", "interface to attach the probe to") // TODO: change default value to eth0
-	port      = flag.Int("port", 50051, "The server port")
+	ifaceFlag = flag.String("interface", "enp0s3", "interface to attach the probe to") //enp0s3
+	port      = flag.Int("port", 50051, "The grpc server port")
 	ft        = probe.NewFlowTable()
-	//ftMutex   sync.RWMutex
-	//ctx       context.Context
-	//cancel    context.CancelFunc
 )
 
 // signalHandler catches SIGINT and SIGTERM then exits the program
@@ -86,8 +83,6 @@ func (s *server) CollectStats(ctx context.Context, req *pb.StatsRequest) (*pb.St
 func main() {
 	flag.Parse()
 
-	//ctx, cancel = createContextAndCancel()
-
 	//Configure probe's network interface
 	iface, errint := netlink.LinkByName(*ifaceFlag)
 	if errint != nil {
@@ -99,7 +94,6 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 
 	signalHandler(cancel)
-	//signalHandler()
 
 	//Configure gRPC server
 	go func() {
@@ -113,7 +107,6 @@ func main() {
 		if errs := s.Serve(lis); errs != nil {
 			log.Fatalf("failed to serve: %v", errs)
 		}
-		// Signal that the server has finished
 
 	}()
 
