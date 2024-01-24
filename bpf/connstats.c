@@ -194,9 +194,9 @@ static inline int update_metrics(struct packet_t* pkt) {
         }
         //check if flow ended
 
-        // if 2 fin packets are received, delete flow from map
+        // after 2 fin packets are received, delete flow from map
         if ((pkt->fin == true) && (pkt->ack == true) && (flowmetrics->fin == true)) {
-            //flow ended, send to userspace
+            //consider flow ended, send to userspace
             struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
             if (!record) {
                 //"couldn't reserve space in the ringbuf. Dropping flow");
@@ -230,8 +230,10 @@ static inline int update_metrics(struct packet_t* pkt) {
             new_flowm.packets_in = 1;
             new_flowm.bytes_in = pkt->len;
         }
-        //if ((pkt->syn == true && pkt->ack == false) || (pkt->protocol == IPPROTO_UDP)) { //new tcp syn or udp connection, add to flowstracker map
-            //not using syn at the moment bc i was loosing packets, maybe hablar con el tutor sobre esto y ver si es necesario usarlo para algo
+        if ((pkt->syn == true && pkt->ack == false) || (pkt->protocol == IPPROTO_UDP)) { //new tcp syn or udp connection, add to flowstracker map
+            //not sure about using syn because i might lose packets, when the flow is first added to the ringbuf and there is still no space in the hash map, analyze more!
+            //I think a way out of this would be not to check if is syn and always try to add to map, and if it fails, send to userspace via ringbuf 
+            //but this would imply also to identify better the termination of a tcp connection which is tricky because of the fin/ack packets and the rst packets considerations
             long ret = bpf_map_update_elem(&flowstracker, &flowid, &new_flowm, BPF_NOEXIST);
             if (ret != 0) {
                 bpf_printk("error adding new flow %d\n", ret); //maybe because map is full
@@ -255,6 +257,7 @@ static inline int update_metrics(struct packet_t* pkt) {
         //     record->metrics = new_flowm;
         //     bpf_ringbuf_submit(record, 0);
         // }
+        }
     }
     return TC_ACT_OK;
 }
