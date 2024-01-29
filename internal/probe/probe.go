@@ -209,13 +209,15 @@ func UnmarshalFlowRecord(in []byte) (Flowrecord, bool) {
 
 	// form the probeFlowMetrics struct
 	f_m := probeFlowMetrics{
-		PacketsIn:  binary.LittleEndian.Uint32(in[40:44]),
-		PacketsOut: binary.LittleEndian.Uint32(in[44:48]),
-		BytesIn:    binary.LittleEndian.Uint64(in[48:56]),
-		BytesOut:   binary.LittleEndian.Uint64(in[56:64]),
-		TsStart:    binary.LittleEndian.Uint64(in[64:72]),
-		TsCurrent:  binary.LittleEndian.Uint64(in[72:80]),
-		Fin:        in[80] == 1,
+		PacketsIn:    binary.LittleEndian.Uint32(in[40:44]),
+		PacketsOut:   binary.LittleEndian.Uint32(in[44:48]),
+		BytesIn:      binary.LittleEndian.Uint64(in[48:56]),
+		BytesOut:     binary.LittleEndian.Uint64(in[56:64]),
+		TsStart:      binary.LittleEndian.Uint64(in[64:72]),
+		TsCurrent:    binary.LittleEndian.Uint64(in[72:80]),
+		FinCounter:   in[80],
+		FlowClosed:   in[81] == 1,
+		SynToRingbuf: in[82] == 1,
 	}
 	//log.Printf("Binary: L_ip %v R_ip %v L_port %v R_port %v Protocol %v", in[0:16], in[16:32], in[32:34], in[34:36], in[36])
 	//log.Printf("Binary: PacketsIn %v PacketsOut %v BytesIn %v BytesOut %v TsStart %v TsCurrent %v Fin %v", in[37:41], in[41:45], in[45:53], in[53:61], in[61:69], in[69:77], in[77])
@@ -303,21 +305,19 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 				log.Printf("Failed reading ringbuf event: %v", err)
 				return
 			}
-			log.Printf("Pkt received from ringbuf: %+v", event.RawSample)
+			//log.Printf("Pkt received from ringbuf: %+v", event.RawSample)
 			flowrecord, ok := UnmarshalFlowRecord(event.RawSample)
 			if !ok {
-				//log.Printf("Could not unmarshall flow record: %+v", event.RawSample)
+				log.Printf("Could not unmarshall flow record: %+v", event.RawSample)
 				continue
 			}
-			//log.Printf("Flowrecord unmarshalled: %+v", flowrecord)
-			//ft.Store(flowrecord.fid, flowrecord.fm) // Copiar directamente, con esto si existe en el flowtable lo actualiza y si no existe lo agrega
+			log.Printf("Flowrecord unmarshalled: %+v", flowrecord)
 
 			// if flow record fin is true, delete from flow table
-			if flowrecord.fm.Fin {
+			if flowrecord.fm.FlowClosed {
 				ft.Remove(flowrecord.fid)
 			} else {
-				// if flow record fin is false, update flow table
-				ft.UpdateFlowTable(flowrecord.fid, flowrecord.fm)
+				ft.UpdateFlowTableFromRingbuf(flowrecord.fid, flowrecord.fm)
 			}
 		}
 	}()

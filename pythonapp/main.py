@@ -13,9 +13,9 @@ import argparse
 parser = argparse.ArgumentParser(description='Python client for the connstats service')
 
 # Add server_ip argument
-#parser.add_argument('--server_ip', type=str, default='192.168.1.204', help='grpc server ip address')
-parser.add_argument('--server_ip', type=str, required=True, help='grpc server ip address')
-parser.add_argument('--rtime', type=int, default=7, help='refresh time in seconds to collect the stats')
+parser.add_argument('--server_ip', type=str, default='192.168.1.204', help='grpc server ip address')
+#parser.add_argument('--server_ip', type=str, required=True, help='grpc server ip address')
+parser.add_argument('--rtime', type=int, default=10, help='refresh time in seconds to collect the stats')
 
 # Analize the arguments passed to the script
 args = parser.parse_args()
@@ -86,32 +86,21 @@ def run():
                 
                 time_diff = (connection.ts_current - connection.ts_start) / 1000000000
                 if time_diff> 0:
-                    Inpps.append(round(connection.packets_in / time_diff, 2))
-                    Outpps.append(round(connection.packets_out / time_diff, 2))
-                else:
-                    #print this connection attributes in one line for debug   
-                    print("connection.protocol: ", connection.protocol)
-                    print("connection.l_ip: ", connection.l_ip)
-                    print("connection.l_port: ", connection.l_port)
-                    print("connection.r_ip: ", connection.r_ip)
-                    print("connection.r_port: ", connection.r_port)
-                    print("connection.packets_in: ", connection.packets_in)
-                    print("connection.packets_out: ", connection.packets_out)
-                    print("connection.ts_start: ", connection.ts_start)
-                    print("connection.ts_current: ", connection.ts_current)
-                 
+                    Inpps.append(round(connection.packets_in / time_diff, 3))
+                    Outpps.append(round(connection.packets_out / time_diff, 3))
+                else:                 
                     Inpps.append(0)
                     Outpps.append(0)
                 
                 if connection.packets_in > 0:
-                    InBpp.append(round(connection.bytes_in / connection.packets_in, 2))
+                    InBpp.append(round(connection.bytes_in / connection.packets_in, 3))
                 else:
                     InBpp.append(0)
                 
                 if connection.packets_out > 0:
-                    OutBpp.append(round(connection.bytes_out / connection.packets_out, 2))
-                    InPoutP.append(round(connection.packets_in / connection.packets_out, 2))
-                    InBoutB.append(round(connection.bytes_in / connection.bytes_out, 2))
+                    OutBpp.append(round(connection.bytes_out / connection.packets_out, 3))
+                    InPoutP.append(round(connection.packets_in / connection.packets_out, 3))
+                    InBoutB.append(round(connection.bytes_in / connection.bytes_out, 3))
                 else:
                     OutBpp.append(0)
                     InPoutP.append(0)

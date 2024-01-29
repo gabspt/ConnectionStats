@@ -24,6 +24,7 @@ struct packet_t {
     bool syn;
     bool ack;
     bool fin;
+    bool rst;
     uint64_t ts;
     bool outbound;
     __u32 len;
@@ -42,7 +43,9 @@ struct flow_metrics {
     __u64 bytes_out;
     __u64 ts_start;
     __u64 ts_current;
-    bool fin;
+    __u8 fin_counter;
+    bool flow_closed;
+    bool syn_to_ringbuf;
 };
 
 struct flow_record {
@@ -143,6 +146,7 @@ static inline int handle_ip_segment(uint8_t* head, uint8_t* tail, uint32_t* offs
         pkt->syn = tcp->syn;
         pkt->ack = tcp->ack;
         pkt->fin = tcp->fin;
+        pkt->rst = tcp->rst;
         pkt->ts = bpf_ktime_get_ns();
 
         return 1;
@@ -182,21 +186,24 @@ static inline int update_metrics(struct packet_t* pkt) {
 
     struct flow_metrics *flowmetrics = bpf_map_lookup_elem(&flowstracker, &flowid);
     if (flowmetrics != NULL) {
-        //flow exists, update metrics
+        //flow exists -> update metrics
         flowmetrics->ts_current = pkt->ts;
         if (pkt->outbound == true) { //update outbound egress metrics
             flowmetrics->packets_out += 1;
             flowmetrics->bytes_out += pkt->len;
-        } 
-        else { //update inbound ingress metrics
+        } else { //update inbound ingress metrics
             flowmetrics->packets_in += 1;
             flowmetrics->bytes_in += pkt->len;
         }
-        //check if flow ended
+        if (pkt->fin == true) {
+            flowmetrics->fin_counter += 1;
+        }
 
-        // after 2 fin packets are received, delete flow from map
-        if ((pkt->fin == true) && (pkt->ack == true) && (flowmetrics->fin == true)) {
+        //check if flow ended
+        //after 2 fin packets and 1 ack are received consider flow ended normally, or if rst packet recieved consider flow ended anormally, -> delete flow from map
+        if ((flowmetrics->fin_counter>=2 && pkt->fin == false && pkt->ack == true) || pkt->rst == true ) {
             //consider flow ended, send to userspace
+            flowmetrics->flow_closed = 1;
             struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
             if (!record) {
                 //"couldn't reserve space in the ringbuf. Dropping flow");
@@ -208,8 +215,6 @@ static inline int update_metrics(struct packet_t* pkt) {
             //delete flow from map
             bpf_map_delete_elem(&flowstracker, &flowid);
             return TC_ACT_OK;
-        } else {
-            flowmetrics->fin = pkt->fin;
         }
 
         long ret = bpf_map_update_elem(&flowstracker, &flowid, flowmetrics, BPF_EXIST);
@@ -238,6 +243,7 @@ static inline int update_metrics(struct packet_t* pkt) {
             if (ret != 0) {
                 bpf_printk("error adding new flow %d\n", ret); //maybe because map is full
                 //send to userspace via ringbuf to avoid losing flow
+                new_flowm.syn_to_ringbuf = true;
                 struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
                 if (!record) {
                     //"couldn't reserve space in the ringbuf. Dropping flow");
@@ -247,16 +253,18 @@ static inline int update_metrics(struct packet_t* pkt) {
                 record->metrics = new_flowm;
                 bpf_ringbuf_submit(record, 0);              
             }
-       // } //else { //it's tcp but no syn, send to userspace in case its a flow that was first sent to ringbuf
-        //     struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
-        //     if (!record) {
-        //         //"couldn't reserve space in the ringbuf. Dropping flow");
-        //         return TC_ACT_OK;
-        //     }
-        //     record->id = flowid;
-        //     record->metrics = new_flowm;
-        //     bpf_ringbuf_submit(record, 0);
-        // }
+
+        } else{
+            new_flowm.syn_to_ringbuf = false; //como no es syn ni udp, no meter en hash map, solo enviar para userspace para revisar alla si pertenece a un flujo que se inicio en el userspace por el ringbuf
+            //send to userspace via ringbuf to avoid losing flow
+            struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
+            if (!record) {
+                //"couldn't reserve space in the ringbuf. Dropping flow");
+                return TC_ACT_OK;
+            }
+            record->id = flowid;
+            record->metrics = new_flowm;
+            bpf_ringbuf_submit(record, 0);
         }
     }
     return TC_ACT_OK;

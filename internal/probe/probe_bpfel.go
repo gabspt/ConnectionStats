@@ -21,14 +21,16 @@ type probeFlowId struct {
 }
 
 type probeFlowMetrics struct {
-	PacketsIn  uint32
-	PacketsOut uint32
-	BytesIn    uint64
-	BytesOut   uint64
-	TsStart    uint64
-	TsCurrent  uint64
-	Fin        bool
-	_          [7]byte
+	PacketsIn    uint32
+	PacketsOut   uint32
+	BytesIn      uint64
+	BytesOut     uint64
+	TsStart      uint64
+	TsCurrent    uint64
+	FinCounter   uint8
+	FlowClosed   bool
+	SynToRingbuf bool
+	_            [5]byte
 }
 
 // loadProbe returns the embedded CollectionSpec for probe.
