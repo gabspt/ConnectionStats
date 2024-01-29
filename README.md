@@ -21,6 +21,7 @@ sudo go run connstats.go -interface enp0s3
 
 To run the python program go to pythonapp folder, use the server_ip option to enter the ip of the machine running the probe. Know you can also copy the pythonapp folder to a remote location that has connectivity with the machine running the probe.  
 cd pythonapp
-python3 main.py --server_ip <ip>
+python3 main.py --server_ip ip
+
 you can use the --rtime option to specify a refresh time to collect the statistics from the probe, it is 7 seconds by default, 
 example: python3 main.py --server_ip 192.168.1.204 --rtime 7
