@@ -20,6 +20,7 @@ cd cmd
 sudo go run connstats.go [options]
 
 currently options are:
+
 -interface <interface> : interface to attach the ebpf program, by default is enp0s3
 
 
@@ -28,6 +29,7 @@ cd pythonapp
 python3 main.py [options]
 
 currently options are:
+
 --server_ip <server_ip> : ip of the machine running the probe, mandatory option
 --rtime <refresh_time> : refresh time in seconds to collect the statistics from the probe, 10 sec by default
 example: python3 main.py --server_ip 192.168.1.204 --rtime 7
