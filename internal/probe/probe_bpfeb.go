@@ -33,6 +33,15 @@ type probeFlowMetrics struct {
 	_            [5]byte
 }
 
+type probeGlobalMetrics struct {
+	TotalPackets    uint64
+	TotalTcppackets uint64
+	TotalUdppackets uint64
+	TotalFlows      uint64
+	TotalTcpflows   uint64
+	TotalUdpflows   uint64
+}
+
 // loadProbe returns the embedded CollectionSpec for probe.
 func loadProbe() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_ProbeBytes)
@@ -82,8 +91,9 @@ type probeProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type probeMapSpecs struct {
-	Flowstracker *ebpf.MapSpec `ebpf:"flowstracker"`
-	Pipe         *ebpf.MapSpec `ebpf:"pipe"`
+	Flowstracker  *ebpf.MapSpec `ebpf:"flowstracker"`
+	Globalmetrics *ebpf.MapSpec `ebpf:"globalmetrics"`
+	Pipe          *ebpf.MapSpec `ebpf:"pipe"`
 }
 
 // probeObjects contains all objects after they have been loaded into the kernel.
@@ -105,13 +115,15 @@ func (o *probeObjects) Close() error {
 //
 // It can be passed to loadProbeObjects or ebpf.CollectionSpec.LoadAndAssign.
 type probeMaps struct {
-	Flowstracker *ebpf.Map `ebpf:"flowstracker"`
-	Pipe         *ebpf.Map `ebpf:"pipe"`
+	Flowstracker  *ebpf.Map `ebpf:"flowstracker"`
+	Globalmetrics *ebpf.Map `ebpf:"globalmetrics"`
+	Pipe          *ebpf.Map `ebpf:"pipe"`
 }
 
 func (m *probeMaps) Close() error {
 	return _ProbeClose(
 		m.Flowstracker,
+		m.Globalmetrics,
 		m.Pipe,
 	)
 }

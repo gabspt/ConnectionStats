@@ -167,7 +167,32 @@ func newProbe(iface netlink.Link) (*probe, error) {
 	return &prbe, nil
 }
 
+// func print global metrics
+func (p *probe) PrintGlobalMetrics() {
+	globalmetricsmap := p.bpfObjects.probeMaps.Globalmetrics
+	keyg := uint32(0)
+	var gm probeGlobalMetrics
+	err := globalmetricsmap.Lookup(keyg, &gm)
+	if err != nil {
+		log.Fatalf("Failed to lookup global metrics: %v", err)
+	}
+
+	log.Printf("")
+	log.Printf("Global metrics:")
+	log.Printf("---------------")
+	log.Printf("Total packets analyzed: %v", gm.TotalPackets)
+	log.Printf("Total TCP packets analyzed: %v", gm.TotalTcppackets)
+	log.Printf("Total UDP packets analyzed: %v", gm.TotalUdppackets)
+	log.Printf("Total flows analyzed: %v", gm.TotalFlows)
+	log.Printf("Total TCP flows analyzed: %v", gm.TotalTcpflows)
+	log.Printf("Total UDP flows analyzed: %v", gm.TotalUdpflows)
+	log.Printf("")
+}
+
 func (p *probe) Close() error {
+
+	p.PrintGlobalMetrics()
+
 	log.Println("Removing qdisc")
 	if err := p.handle.QdiscDel(p.qdisc); err != nil {
 		log.Println("Failed deleting qdisc")
@@ -228,7 +253,8 @@ func UnmarshalFlowRecord(in []byte) (Flowrecord, bool) {
 	}, true
 }
 
-// Prune deletes stale entries (havnt been updated in more than 60 seconds) directly from the hash map Flowstracker
+// Prune deletes stale entries (havnt been updated in more than 60 seconds = 60000ms) directly from the hash map Flowstracker
+// For testing pruposes we will adjust the Prune IDLE_TIMEOUT according to the defaults timeouts used in tstat tool
 func (p *probe) Prune(ft *FlowTable) {
 
 	flowstrackermap := p.bpfObjects.probeMaps.Flowstracker
@@ -236,13 +262,36 @@ func (p *probe) Prune(ft *FlowTable) {
 	var fid probeFlowId
 	var flowmetrics probeFlowMetrics
 	for iterator.Next(&fid, &flowmetrics) {
-		lastts := flowmetrics.TsCurrent
-		now := timer.GetNanosecSinceBoot()
-		if (now-lastts)/1000000 > 60000 {
-			log.Printf("Pruning stale entry from flowstracker map: %v with tscurr %v at %vtime after %vms", fid, lastts, now, (now-lastts)/1000000)
-			flowstrackermap.Delete(&fid)
-			//Delete also from the flowtable
-			ft.Remove(fid)
+		if (flowmetrics.PacketsIn + flowmetrics.PacketsOut) > 2 {
+			if fid.Protocol == 6 { //TCP
+				lastts := flowmetrics.TsCurrent
+				now := timer.GetNanosecSinceBoot()
+				if (now-lastts)/1000000 > 300000 { //300000ms = 5min
+					log.Printf("Pruning stale entry from flowstracker map: %v with tscurr %v at %vtime after %vms", fid, lastts, now, (now-lastts)/1000000)
+					flowstrackermap.Delete(&fid)
+					//Delete also from the flowtable
+					ft.Remove(fid)
+				}
+			} else if fid.Protocol == 17 { //UDP
+				lastts := flowmetrics.TsCurrent
+				now := timer.GetNanosecSinceBoot()
+				if (now-lastts)/1000000 > 200000 { //200000ms = 3min and 20s
+					log.Printf("Pruning stale entry from flowstracker map: %v with tscurr %v at %vtime after %vms", fid, lastts, now, (now-lastts)/1000000)
+					flowstrackermap.Delete(&fid)
+					//Delete also from the flowtable
+					ft.Remove(fid)
+				}
+			}
+		} else {
+			//no packets have been observed for this flow 10 seconds after the initial packet,
+			lastts := flowmetrics.TsCurrent
+			now := timer.GetNanosecSinceBoot()
+			if (now-lastts)/1000000 > 10000 { //10000ms = 10s
+				log.Printf("Pruning stale entry from flowstracker map: %v with tscurr %v at %vtime after %vms", fid, lastts, now, (now-lastts)/1000000)
+				flowstrackermap.Delete(&fid)
+				//Delete also from the flowtable
+				ft.Remove(fid)
+			}
 		}
 	}
 }

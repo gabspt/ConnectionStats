@@ -53,6 +53,16 @@ struct flow_record {
     struct flow_metrics metrics;
 };
 
+struct global_metrics {
+    __u64 total_packets;
+    __u64 total_tcppackets;
+    __u64 total_udppackets;
+    //__u64 total_bytes;
+    __u64 total_flows;
+    __u64 total_tcpflows;
+    __u64 total_udpflows;
+};
+
 // struct flow_stats {
 //     struct flow_id id;
 //     __u32 inpps;
@@ -76,6 +86,13 @@ struct {
     __type(value, struct flow_metrics);
     __uint(map_flags, BPF_F_NO_PREALLOC);
 } flowstracker SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1 );
+    __type(key, __u32);
+    __type(value, struct global_metrics); // cambiar por una nueva struct que contenga las metricas glbaes
+} globalmetrics SEC(".maps");
 
 static inline int handle_ip_packet(uint8_t* head, uint8_t* tail, uint32_t* offset, struct packet_t* pkt) {
     struct ethhdr* eth = (void*)head;
@@ -166,6 +183,29 @@ static inline int handle_ip_segment(uint8_t* head, uint8_t* tail, uint32_t* offs
 }
 
 static inline int update_metrics(struct packet_t* pkt) {
+    //update global metrics total_packets, total_tcp_packets, total_udp_packets 
+    __u32 keygb = 0;
+    struct global_metrics *globalm;
+    globalm = bpf_map_lookup_elem(&globalmetrics, &keygb);
+    if (globalm != NULL) {
+        globalm->total_packets += 1;
+        if (pkt->protocol == IPPROTO_TCP) {
+            globalm->total_tcppackets += 1;
+        } else {
+            globalm->total_udppackets += 1;
+        }
+        bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY);
+    } else {
+        struct global_metrics new_globalm = {0};
+        new_globalm.total_packets = 1;
+        if (pkt->protocol == IPPROTO_TCP) {
+            new_globalm.total_tcppackets = 1;
+        } else {
+            new_globalm.total_udppackets = 1;
+        }
+        bpf_map_update_elem(&globalmetrics, &keygb, &new_globalm, BPF_ANY);
+    }
+
     //empezando a conformar el flow id
     struct flow_id flowid = {0};
 
@@ -239,6 +279,18 @@ static inline int update_metrics(struct packet_t* pkt) {
             //not sure about using syn because i might lose packets, when the flow is first added to the ringbuf and there is still no space in the hash map, analyze more!
             //I think a way out of this would be not to check if is syn and always try to add to map, and if it fails, send to userspace via ringbuf 
             //but this would imply also to identify better the termination of a tcp connection which is tricky because of the fin/ack packets and the rst packets considerations
+
+            globalm = bpf_map_lookup_elem(&globalmetrics, &keygb);
+            if (globalm != NULL) {
+                globalm->total_flows += 1;
+                if (pkt->protocol == IPPROTO_TCP) {
+                    globalm->total_tcpflows += 1;
+                } else {
+                    globalm->total_udpflows += 1;
+                }
+                bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY);
+            } 
+            
             long ret = bpf_map_update_elem(&flowstracker, &flowid, &new_flowm, BPF_NOEXIST);
             if (ret != 0) {
                 bpf_printk("error adding new flow %d\n", ret); //maybe because map is full
