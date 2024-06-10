@@ -28,18 +28,20 @@ type probeFlowMetrics struct {
 	TsStart      uint64
 	TsCurrent    uint64
 	FinCounter   uint8
-	FlowClosed   bool
-	SynToRingbuf bool
-	_            [5]byte
+	AckCounter   uint8
+	FlowClosed   uint8
+	SynOrUdpToRb bool
+	_            [4]byte
 }
 
 type probeGlobalMetrics struct {
-	TotalPackets    uint64
-	TotalTcppackets uint64
-	TotalUdppackets uint64
-	TotalFlows      uint64
-	TotalTcpflows   uint64
-	TotalUdpflows   uint64
+	TotalProcessedpackets uint64
+	TotalTcpudppackets    uint64
+	TotalTcppackets       uint64
+	TotalUdppackets       uint64
+	TotalFlows            uint64
+	TotalTcpflows         uint64
+	TotalUdpflows         uint64
 }
 
 // loadProbe returns the embedded CollectionSpec for probe.

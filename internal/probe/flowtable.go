@@ -4,11 +4,10 @@ import (
 	"log"
 	"net/netip"
 	"sync"
-	"time"
 )
 
 type FlowTable struct {
-	Ticker *time.Ticker
+	//Ticker *time.Ticker
 	sync.Map
 }
 
@@ -27,8 +26,12 @@ type Connection struct {
 }
 
 // NewFlowTable Constructs a new FlowTable
+//
+//	func NewFlowTable() *FlowTable {
+//		return &FlowTable{Ticker: time.NewTicker(time.Second * 10)}
+//	}
 func NewFlowTable() *FlowTable {
-	return &FlowTable{Ticker: time.NewTicker(time.Second * 10)}
+	return &FlowTable{}
 }
 
 // delete deletes connection hash and its data from the FlowTable
@@ -116,43 +119,43 @@ func (table *FlowTable) GetConnList() []Connection {
 }
 
 // UpdateFlowTable updates the FlowTable and returns a boolean indicating if the flow was updated or not
-func (table *FlowTable) UpdateFlowTable(key, value interface{}) bool {
-	fid, okid := key.(probeFlowId)
-	fm, okm := value.(probeFlowMetrics)
+// func (table *FlowTable) UpdateFlowTable(key, value interface{}) bool {
+// 	fid, okid := key.(probeFlowId)
+// 	fm, okm := value.(probeFlowMetrics)
 
-	if okid && okm {
-		value, found := table.Load(fid)
-		if !found { // Flow does not exist in the flow table add tal cual
-			table.Store(fid, fm)
-		} else {
-			existingflowm, ok := value.(probeFlowMetrics)
-			if ok {
-				//log.Printf("Existing flow key: %+v,  metrics: %+v", fid, existingflowm)
-				//log.Printf("Incoming flow key: %+v,  metrics: %+v", fid, fm)
-				fm.PacketsIn += existingflowm.PacketsIn
-				fm.PacketsOut += existingflowm.PacketsOut
-				fm.BytesIn += existingflowm.BytesIn
-				fm.BytesOut += existingflowm.BytesOut
-				if existingflowm.TsStart < fm.TsStart {
-					fm.TsStart = existingflowm.TsStart
-				}
-				if existingflowm.TsCurrent > fm.TsCurrent {
-					fm.TsCurrent = existingflowm.TsCurrent
-				}
-				table.Store(fid, fm)
-				//log.Printf("Stored flow key: %+v,  metrics: %+v", fid, fm)
-			} else {
-				log.Printf("Could not convert existing value to probeFlowMetrics: %+v", value)
-				//ft.Store(fid, flowmetrics) //decidir si en este caso se queda la tabla como estaba o se le pone lo del flowstracker, ahora mismo se queda como estaba, maybe ca,biar dependiendo de experimentos
-			}
-		}
+// 	if okid && okm {
+// 		value, found := table.Load(fid)
+// 		if !found { // Flow does not exist in the flow table add tal cual
+// 			table.Store(fid, fm)
+// 		} else {
+// 			existingflowm, ok := value.(probeFlowMetrics)
+// 			if ok {
+// 				//log.Printf("Existing flow key: %+v,  metrics: %+v", fid, existingflowm)
+// 				//log.Printf("Incoming flow key: %+v,  metrics: %+v", fid, fm)
+// 				fm.PacketsIn += existingflowm.PacketsIn
+// 				fm.PacketsOut += existingflowm.PacketsOut
+// 				fm.BytesIn += existingflowm.BytesIn
+// 				fm.BytesOut += existingflowm.BytesOut
+// 				if existingflowm.TsStart < fm.TsStart {
+// 					fm.TsStart = existingflowm.TsStart
+// 				}
+// 				if existingflowm.TsCurrent > fm.TsCurrent {
+// 					fm.TsCurrent = existingflowm.TsCurrent
+// 				}
+// 				table.Store(fid, fm)
+// 				//log.Printf("Stored flow key: %+v,  metrics: %+v", fid, fm)
+// 			} else {
+// 				log.Printf("Could not convert existing value to probeFlowMetrics: %+v", value)
+// 				//ft.Store(fid, flowmetrics) //decidir si en este caso se queda la tabla como estaba o se le pone lo del flowstracker, ahora mismo se queda como estaba, maybe ca,biar dependiendo de experimentos
+// 			}
+// 		}
 
-	} else {
-		log.Printf("Could not convert key or value to probeFlowId or probeFlowMetrics: %+v, %+v", key, value)
-		return false
-	}
-	return true
-}
+// 	} else {
+// 		log.Printf("Could not convert key or value to probeFlowId or probeFlowMetrics: %+v, %+v", key, value)
+// 		return false
+// 	}
+// 	return true
+// }
 
 // Size returns the size of the FlowTable
 func (ft *FlowTable) Size() int {
@@ -174,31 +177,31 @@ func (ft *FlowTable) PrintFlowTable() {
 	log.Printf("")
 }
 
-// UpdateFlowTableFromRingbuf updates the FlowTable when the flow record comes from the ring buffer
-func (table *FlowTable) UpdateFlowTableFromRingbuf(fid probeFlowId, fm probeFlowMetrics) {
-	if fm.SynToRingbuf {
-		//flujo nuevo que no cupo en el hashmap, lo agrego al flowtable
-		table.Store(fid, fm)
-	} else {
-		//lo agrego solo si existe en el flowtable, si no existe no lo agrego porque no es un flujo nuevo
-		value, found := table.Load(fid)
-		if found {
-			existingflowm, ok := value.(probeFlowMetrics)
-			if ok {
-				fm.PacketsIn += existingflowm.PacketsIn
-				fm.PacketsOut += existingflowm.PacketsOut
-				fm.BytesIn += existingflowm.BytesIn
-				fm.BytesOut += existingflowm.BytesOut
-				if existingflowm.TsStart < fm.TsStart {
-					fm.TsStart = existingflowm.TsStart
-				}
-				if existingflowm.TsCurrent > fm.TsCurrent {
-					fm.TsCurrent = existingflowm.TsCurrent
-				}
-				table.Store(fid, fm)
-			} else {
-				log.Printf("Could not convert existing value to probeFlowMetrics: %+v", value)
-			}
-		}
-	}
-}
+// // UpdateFlowTableFromRingbuf updates the FlowTable when the flow record comes from the ring buffer
+// func (table *FlowTable) UpdateFlowTableFromRingbuf(fid probeFlowId, fm probeFlowMetrics) {
+// 	if fm.SynToRingbuf {
+// 		//flujo nuevo que no cupo en el hashmap, lo agrego al flowtable
+// 		table.Store(fid, fm)
+// 	} else {
+// 		//lo agrego solo si existe en el flowtable, si no existe no lo agrego porque no es un flujo nuevo
+// 		value, found := table.Load(fid)
+// 		if found {
+// 			existingflowm, ok := value.(probeFlowMetrics)
+// 			if ok {
+// 				fm.PacketsIn += existingflowm.PacketsIn
+// 				fm.PacketsOut += existingflowm.PacketsOut
+// 				fm.BytesIn += existingflowm.BytesIn
+// 				fm.BytesOut += existingflowm.BytesOut
+// 				if existingflowm.TsStart < fm.TsStart {
+// 					fm.TsStart = existingflowm.TsStart
+// 				}
+// 				if existingflowm.TsCurrent > fm.TsCurrent {
+// 					fm.TsCurrent = existingflowm.TsCurrent
+// 				}
+// 				table.Store(fid, fm)
+// 			} else {
+// 				log.Printf("Could not convert existing value to probeFlowMetrics: %+v", value)
+// 			}
+// 		}
+// 	}
+// }

@@ -8,6 +8,7 @@ import grpc
 import connstats_pb2
 import connstats_pb2_grpc
 import argparse
+import os
 
 # Create the parser
 parser = argparse.ArgumentParser(description='Python client for the connstats service')
@@ -15,7 +16,7 @@ parser = argparse.ArgumentParser(description='Python client for the connstats se
 # Add server_ip argument
 parser.add_argument('--server_ip', type=str, default='192.168.1.204', help='grpc server ip address')
 #parser.add_argument('--server_ip', type=str, required=True, help='grpc server ip address')
-parser.add_argument('--rtime', type=int, default=10, help='refresh time in seconds to collect the stats')
+parser.add_argument('--rtime', type=int, default=6, help='refresh time in seconds to collect the stats')
 
 # Analize the arguments passed to the script
 args = parser.parse_args()
@@ -130,13 +131,24 @@ def run():
                 'TsCurrent': TsCurrent
             })
                         
-            print(df)  
-            print("")  
+            #print(df)  
+            #print("")  
             print(dfStats)  
             print("")  
 
-            # Guardar el DataFrame en un archivo CSV
-            dfStats.to_csv('datos.csv', index=False)  
+            # Guardar el DataFrame metricas en un archivo CSV
+            #dfStats.to_csv('datos.csv', index=False)  
+            if not os.path.isfile('datosmetrics.csv'):
+                df.to_csv('datosmetrics.csv', header=True, index=False)
+            else: 
+                df.to_csv('datosmetrics.csv', mode='a', header=False, index=False)
+
+            # Guardar el DataFrame stats en un archivo CSV
+            #dfStats.to_csv('datos.csv', index=False)  
+            if not os.path.isfile('datos.csv'):
+                dfStats.to_csv('datos.csv', header=True, index=False)
+            else: 
+                dfStats.to_csv('datos.csv', mode='a', header=False, index=False)
                
 
             time.sleep(REFRESH_TIME)

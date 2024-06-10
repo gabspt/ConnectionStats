@@ -1,0 +1,47 @@
+2024/04/14 19:43:41 Starting up the probe at interface enp0s8
+2024/04/14 19:43:41 Creating a new probe
+2024/04/14 19:43:41 Setting rlimit - soft: 20971520, hard: 41943040
+2024/04/14 19:43:41 Loading probe object to kernel
+2024/04/14 19:43:41 server listening at [::]:50051
+2024/04/14 19:43:42 Creating qdisc
+2024/04/14 19:43:42 Creating qdisc filters
+2024/04/14 19:43:47 Received request
+2024/04/14 19:43:53 Received request
+2024/04/14 19:43:59 Received request
+2024/04/14 19:44:05 Received request
+2024/04/14 19:44:11 Received request
+2024/04/14 19:44:17 Received request
+2024/04/14 19:44:24 Received request
+2024/04/14 19:44:30 Received request
+2024/04/14 19:44:36 Received request
+2024/04/14 19:44:42 Received request
+2024/04/14 19:44:48 Received request
+2024/04/14 19:44:50 Flowrecord unmarshalled: {fid:{L_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 1]}} R_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 2]}} L_port:5201 R_port:52460 Protocol:6} fm:{PacketsIn:20081 PacketsOut:13577 BytesIn:349134707 BytesOut:900802 TsStart:79816766542884 TsCurrent:79876870783533 FinCounter:0 AckCounter:0 FlowClosed:2 SynOrUdpToRb:false _:[0 0 0 0]}}
+2024/04/14 19:44:50 Flowrecord unmarshalled: {fid:{L_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 1]}} R_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 2]}} L_port:5201 R_port:52474 Protocol:6} fm:{PacketsIn:19279 PacketsOut:12089 BytesIn:292960107 BytesOut:803502 TsStart:79816824693817 TsCurrent:79876872584132 FinCounter:0 AckCounter:0 FlowClosed:2 SynOrUdpToRb:false _:[0 0 0 0]}}
+2024/04/14 19:44:50 Flowrecord unmarshalled: {fid:{L_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 1]}} R_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 2]}} L_port:5201 R_port:52484 Protocol:6} fm:{PacketsIn:19462 PacketsOut:12188 BytesIn:305095913 BytesOut:809884 TsStart:79816824693817 TsCurrent:79876873967259 FinCounter:0 AckCounter:0 FlowClosed:2 SynOrUdpToRb:false _:[0 0 0 0]}}
+2024/04/14 19:44:50 Flowrecord unmarshalled: {fid:{L_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 1]}} R_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 2]}} L_port:5201 R_port:52498 Protocol:6} fm:{PacketsIn:19160 PacketsOut:11781 BytesIn:298007929 BytesOut:782882 TsStart:79816777889168 TsCurrent:79876875255833 FinCounter:0 AckCounter:0 FlowClosed:2 SynOrUdpToRb:false _:[0 0 0 0]}}
+2024/04/14 19:44:50 Flowrecord unmarshalled: {fid:{L_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 1]}} R_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 2]}} L_port:5201 R_port:52502 Protocol:6} fm:{PacketsIn:18883 PacketsOut:11566 BytesIn:287126843 BytesOut:768696 TsStart:79816824693817 TsCurrent:79876877153436 FinCounter:0 AckCounter:0 FlowClosed:2 SynOrUdpToRb:false _:[0 0 0 0]}}
+2024/04/14 19:44:50 Flowrecord unmarshalled: {fid:{L_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 1]}} R_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 2]}} L_port:5201 R_port:52506 Protocol:6} fm:{PacketsIn:18508 PacketsOut:11153 BytesIn:288954821 BytesOut:741218 TsStart:79816832110719 TsCurrent:79876878487862 FinCounter:0 AckCounter:0 FlowClosed:2 SynOrUdpToRb:false _:[0 0 0 0]}}
+2024/04/14 19:44:50 Flowrecord unmarshalled: {fid:{L_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 1]}} R_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 2]}} L_port:5201 R_port:52510 Protocol:6} fm:{PacketsIn:18441 PacketsOut:11168 BytesIn:291597715 BytesOut:742112 TsStart:79816832110719 TsCurrent:79876880047083 FinCounter:0 AckCounter:0 FlowClosed:2 SynOrUdpToRb:false _:[0 0 0 0]}}
+2024/04/14 19:44:50 Flowrecord unmarshalled: {fid:{L_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 1]}} R_ip:{In6U:{U6Addr8:[0 0 0 0 0 0 0 0 0 0 255 255 192 168 2 2]}} L_port:5201 R_port:52512 Protocol:6} fm:{PacketsIn:18447 PacketsOut:11435 BytesIn:298463987 BytesOut:759794 TsStart:79816766542884 TsCurrent:79876881506447 FinCounter:0 AckCounter:0 FlowClosed:2 SynOrUdpToRb:false _:[0 0 0 0]}}
+2024/04/14 19:44:54 Received request
+2024/04/14 19:45:00 Received request
+2024/04/14 19:45:07 
+Caught SIGINT... Exiting
+2024/04/14 19:45:07 
+2024/04/14 19:45:07 Global metrics:
+2024/04/14 19:45:07 ---------------
+2024/04/14 19:45:07 Total packets processed: 247864
+2024/04/14 19:45:07 Total packets analyzed (TCP+UDP): 247836
+2024/04/14 19:45:07 Total TCP packets analyzed: 247840
+2024/04/14 19:45:07 Total UDP packets analyzed: 0
+2024/04/14 19:45:07 Total flows analyzed: 9
+2024/04/14 19:45:07 Total TCP flows analyzed: 9
+2024/04/14 19:45:07 Total UDP flows analyzed: 0
+2024/04/14 19:45:07 
+2024/04/14 19:45:07 Removing qdisc
+2024/04/14 19:45:07 Deleting handle
+2024/04/14 19:45:07 Closing eBPF object
+Command exited with non-zero status 1
+1.32user 3.41system 1:27.11elapsed 5%CPU (0avgtext+0avgdata 171776maxresident)k
+0inputs+20392outputs (107major+27991minor)pagefaults 0swaps

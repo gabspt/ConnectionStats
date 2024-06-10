@@ -44,8 +44,9 @@ struct flow_metrics {
     __u64 ts_start;
     __u64 ts_current;
     __u8 fin_counter;
-    bool flow_closed;
-    bool syn_to_ringbuf;
+    __u8 ack_counter;
+    __u8 flow_closed; // 0 flow open, 1 flow ended normally, 2 flow ended anormally
+    bool syn_or_udp_to_rb;
 };
 
 struct flow_record {
@@ -54,24 +55,16 @@ struct flow_record {
 };
 
 struct global_metrics {
-    __u64 total_packets;
+    __u64 total_processedpackets; 
+    __u64 total_tcpudppackets;
     __u64 total_tcppackets;
     __u64 total_udppackets;
-    //__u64 total_bytes;
     __u64 total_flows;
     __u64 total_tcpflows;
     __u64 total_udpflows;
 };
 
-// struct flow_stats {
-//     struct flow_id id;
-//     __u32 inpps;
-//     __u64 outpps;
-//     __u64 inBpp;
-//     __u64 outBpp;
-//     __u64 inBoutB;
-//     __u64 onPoutP;
-// };
+bool syndidntfitsentrb = false;
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -87,11 +80,19 @@ struct {
     __uint(map_flags, BPF_F_NO_PREALLOC);
 } flowstracker SEC(".maps");
 
+// struct {
+//     __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+//     __uint(max_entries, 1 << 24);
+//     __type(key, __u64);
+//     __type(value, struct flow_metrics);
+//     __uint(map_flags, BPF_F_NO_PREALLOC);
+// } flowstracker SEC(".maps");
+
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
     __uint(max_entries, 1 );
     __type(key, __u32);
-    __type(value, struct global_metrics); // cambiar por una nueva struct que contenga las metricas glbaes
+    __type(value, struct global_metrics); 
 } globalmetrics SEC(".maps");
 
 static inline int handle_ip_packet(uint8_t* head, uint8_t* tail, uint32_t* offset, struct packet_t* pkt) {
@@ -182,29 +183,27 @@ static inline int handle_ip_segment(uint8_t* head, uint8_t* tail, uint32_t* offs
     }
 }
 
-static inline int update_metrics(struct packet_t* pkt) {
+static inline int submit_flow_record(struct flow_id flowid, struct flow_metrics *flowmetrics) {
+    struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
+    if (!record) {
+        return TC_ACT_OK;
+    }
+    record->id = flowid;
+    record->metrics = *flowmetrics;
+    bpf_ringbuf_submit(record, 0);
+    return 0;
+}
+
+static inline int update_metrics(struct packet_t* pkt, struct global_metrics *globalm) {
     //update global metrics total_packets, total_tcp_packets, total_udp_packets 
     __u32 keygb = 0;
-    struct global_metrics *globalm;
-    globalm = bpf_map_lookup_elem(&globalmetrics, &keygb);
-    if (globalm != NULL) {
-        globalm->total_packets += 1;
-        if (pkt->protocol == IPPROTO_TCP) {
-            globalm->total_tcppackets += 1;
-        } else {
-            globalm->total_udppackets += 1;
-        }
-        bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY);
+    globalm->total_tcpudppackets += 1;
+    if (pkt->protocol == IPPROTO_TCP) {
+        globalm->total_tcppackets += 1;
     } else {
-        struct global_metrics new_globalm = {0};
-        new_globalm.total_packets = 1;
-        if (pkt->protocol == IPPROTO_TCP) {
-            new_globalm.total_tcppackets = 1;
-        } else {
-            new_globalm.total_udppackets = 1;
-        }
-        bpf_map_update_elem(&globalmetrics, &keygb, &new_globalm, BPF_ANY);
+        globalm->total_udppackets += 1;
     }
+    bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
 
     //empezando a conformar el flow id
     struct flow_id flowid = {0};
@@ -214,14 +213,14 @@ static inline int update_metrics(struct packet_t* pkt) {
     if (pkt->outbound == true) { // outbound egress flow
         flowid.l_ip = pkt->src_ip;
         flowid.r_ip = pkt->dst_ip;
-        flowid.l_port = pkt->src_port;
-        flowid.r_port = pkt->dst_port;
+        flowid.l_port = bpf_ntohs(pkt->src_port);
+        flowid.r_port = bpf_ntohs(pkt->dst_port);
     } 
     else { // inbound ingress flow
         flowid.l_ip = pkt->dst_ip;
         flowid.r_ip = pkt->src_ip;
-        flowid.l_port = pkt->dst_port;
-        flowid.r_port = pkt->src_port;
+        flowid.l_port = bpf_ntohs(pkt->dst_port);
+        flowid.r_port = bpf_ntohs(pkt->src_port);
     }
 
     struct flow_metrics *flowmetrics = bpf_map_lookup_elem(&flowstracker, &flowid);
@@ -235,33 +234,35 @@ static inline int update_metrics(struct packet_t* pkt) {
             flowmetrics->packets_in += 1;
             flowmetrics->bytes_in += pkt->len;
         }
-        if (pkt->fin == true) {
+        if (pkt->fin == true && pkt->ack == true) { // FIN/ACK segment observed
             flowmetrics->fin_counter += 1;
         }
+        if (flowmetrics->fin_counter >= 1 && pkt->ack == true && pkt->fin == false && pkt->syn == false && pkt->rst == false ){
+            flowmetrics->ack_counter += 1;
+        }
 
-        //check if flow ended
-        //after 2 fin packets and 1 ack are received consider flow ended normally, or if rst packet recieved consider flow ended anormally, -> delete flow from map
-        if ((flowmetrics->fin_counter>=2 && pkt->fin == false && pkt->ack == true) || pkt->rst == true ) {
-            //consider flow ended, send to userspace
+        //check if flow ended //consider flow ended, send to userspace to be deleted from hash map and flowtable
+        //after 2 fin packets and 2 ack are received consider flow ended normally, or if rst packet recieved consider flow ended anormally, -> delete flow from map
+        if (flowmetrics->fin_counter>=2 && flowmetrics->ack_counter>=2 && pkt->ack == true && pkt->fin == false && pkt->syn == false && pkt->rst == false) { //flow ended normally  
             flowmetrics->flow_closed = 1;
-            struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
-            if (!record) {
-                //"couldn't reserve space in the ringbuf. Dropping flow");
+        } else if (pkt->rst == true) { //flow ended anormally
+            flowmetrics->flow_closed = 2;
+        } else { //flow still open -> update hash map and return
+            long ret = bpf_map_update_elem(&flowstracker, &flowid, flowmetrics, BPF_EXIST);
+            if (ret != 0) {
+                //bpf_printk("error updating flow %d\n", ret);
                 return TC_ACT_OK;
             }
-            record->id = flowid;
-            record->metrics = *flowmetrics;
-            bpf_ringbuf_submit(record, 0);
-            //delete flow from map
-            bpf_map_delete_elem(&flowstracker, &flowid);
             return TC_ACT_OK;
         }
 
-        long ret = bpf_map_update_elem(&flowstracker, &flowid, flowmetrics, BPF_EXIST);
-        if (ret != 0) {
-            bpf_printk("error updating flow %d\n", ret);
+        // flow ended, delete from hash map
+        bpf_map_delete_elem(&flowstracker, &flowid);
+        //send to userspace to be deleted from flowtable and saved to log
+        if (submit_flow_record(flowid, flowmetrics) == TC_ACT_OK) {
             return TC_ACT_OK;
         }
+        return TC_ACT_OK;
 
     } else {
         //flow doesn't exist, create new flow
@@ -276,63 +277,72 @@ static inline int update_metrics(struct packet_t* pkt) {
             new_flowm.bytes_in = pkt->len;
         }
         if ((pkt->syn == true && pkt->ack == false) || (pkt->protocol == IPPROTO_UDP)) { //new tcp syn or udp connection, add to flowstracker map
-            //not sure about using syn because i might lose packets, when the flow is first added to the ringbuf and there is still no space in the hash map, analyze more!
-            //I think a way out of this would be not to check if is syn and always try to add to map, and if it fails, send to userspace via ringbuf 
-            //but this would imply also to identify better the termination of a tcp connection which is tricky because of the fin/ack packets and the rst packets considerations
-
-            globalm = bpf_map_lookup_elem(&globalmetrics, &keygb);
-            if (globalm != NULL) {
-                globalm->total_flows += 1;
-                if (pkt->protocol == IPPROTO_TCP) {
-                    globalm->total_tcpflows += 1;
-                } else {
-                    globalm->total_udpflows += 1;
-                }
-                bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY);
-            } 
+        
+            //update total flows global metrics
+            globalm->total_flows += 1;
+            if (pkt->protocol == IPPROTO_TCP) {
+                globalm->total_tcpflows += 1;
+            } else {
+                globalm->total_udpflows += 1;
+            }
+            bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
             
+            //add to flowstracker hash map
             long ret = bpf_map_update_elem(&flowstracker, &flowid, &new_flowm, BPF_NOEXIST);
             if (ret != 0) {
-                bpf_printk("error adding new flow %d\n", ret); //maybe because map is full
-                //send to userspace via ringbuf to avoid losing flow
-                new_flowm.syn_to_ringbuf = true;
-                struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
-                if (!record) {
-                    //"couldn't reserve space in the ringbuf. Dropping flow");
+                //bpf_printk("error adding new flow %d\n", ret); 
+                // //maybe because map is full -> send to userspace via ringbuf to avoid losing flows
+                new_flowm.syn_or_udp_to_rb = true;
+                if (submit_flow_record(flowid, &new_flowm) == TC_ACT_OK) {
                     return TC_ACT_OK;
-                }
-                record->id = flowid;
-                record->metrics = new_flowm;
-                bpf_ringbuf_submit(record, 0);              
+                }   
+                //if tcp set syndidntfitsentrb to true
+                if (pkt->protocol == IPPROTO_TCP) {
+                    syndidntfitsentrb = true; // didnt fit, sent to userspace via ringbuf successfully        
+                }                
             }
 
         } else{
-            new_flowm.syn_to_ringbuf = false; //como no es syn ni udp, no meter en hash map, solo enviar para userspace para revisar alla si pertenece a un flujo que se inicio en el userspace por el ringbuf
-            //send to userspace via ringbuf to avoid losing flow
-            struct flow_record *record = (struct flow_record *)bpf_ringbuf_reserve(&pipe, sizeof(struct flow_record), 0);
-            if (!record) {
-                //"couldn't reserve space in the ringbuf. Dropping flow");
-                return TC_ACT_OK;
-            }
-            record->id = flowid;
-            record->metrics = new_flowm;
-            bpf_ringbuf_submit(record, 0);
+            //es un tcp no syn que no existe en el hashmap, 
+            //enviar a userspace para revisar alla si pertenece a un flujo que se inicio en el userspace por el ringbuf
+            //pero solo si ya se envio alguna vez un syn a userspace
+            //ademas senalizarlo
+            if (syndidntfitsentrb == true) {
+                new_flowm.syn_or_udp_to_rb = false;
+                if (submit_flow_record(flowid, &new_flowm) == TC_ACT_OK) {
+                    return TC_ACT_OK;
+                }
+            }    
         }
-    }
-    return TC_ACT_OK;
+        return TC_ACT_OK;
+    } 
 }
 
 SEC("classifier/ingress")
 int connstatsin(struct __sk_buff* skb) {
 
+    //update global metrics total_packets, total_tcp_packets, total_udp_packets 
+    __u32 keygb = 0;
+    struct global_metrics *globalm = bpf_map_lookup_elem(&globalmetrics, &keygb);
+    if (!globalm) {
+        struct global_metrics new_globalm = {0};
+        new_globalm.total_processedpackets = 1;
+        bpf_map_update_elem(&globalmetrics, &keygb, &new_globalm, BPF_ANY);
+        globalm = &new_globalm;
+    } else {
+        globalm->total_processedpackets += 1;
+        bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
+    }
+
+    //In case the skb is non-linear, pull the data of each packet in a linear region of memory
     if (bpf_skb_pull_data(skb, 0) < 0) {
         return TC_ACT_OK;
     }
 
-    // We only want unicast packets
-    if (skb->pkt_type == PACKET_BROADCAST || skb->pkt_type == PACKET_MULTICAST) {
-        return TC_ACT_OK;
-    }  
+    // Only process unicast packets
+    // if (skb->pkt_type == PACKET_BROADCAST || skb->pkt_type == PACKET_MULTICAST) {
+    //     return TC_ACT_OK;
+    // }  
 
     uint8_t* head = (uint8_t*)(long)skb->data;     // Start of the packet data
     uint8_t* tail = (uint8_t*)(long)skb->data_end; // End of the packet data
@@ -345,9 +355,6 @@ int connstatsin(struct __sk_buff* skb) {
 
     uint32_t offset = 0;
 
-    pkt.len = skb->len;
-    pkt.outbound = false;
-
     if (handle_ip_packet(head, tail, &offset, &pkt) == TC_ACT_OK) {
         return TC_ACT_OK;
     }
@@ -361,7 +368,10 @@ int connstatsin(struct __sk_buff* skb) {
         return TC_ACT_OK;
     }
 
-    if (update_metrics(&pkt) == TC_ACT_OK) {
+    pkt.len = skb->len;
+    pkt.outbound = false;
+
+    if (update_metrics(&pkt, globalm) == TC_ACT_OK) {
         return TC_ACT_OK;
     }
 
@@ -371,14 +381,28 @@ int connstatsin(struct __sk_buff* skb) {
 SEC("classifier/egress")
 int connstatsout(struct __sk_buff* skb) {
 
+    //update global metrics total_packets, total_tcp_packets, total_udp_packets 
+    __u32 keygb = 0;
+    struct global_metrics *globalm = bpf_map_lookup_elem(&globalmetrics, &keygb);
+    if (!globalm) {
+        struct global_metrics new_globalm = {0};
+        new_globalm.total_processedpackets = 1;
+        bpf_map_update_elem(&globalmetrics, &keygb, &new_globalm, BPF_ANY);
+        globalm = &new_globalm;
+    } else {
+        globalm->total_processedpackets += 1;
+        bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
+    }
+
+    //In case the skb is non-linear, pull the data of each packet in a linear region of memory
     if (bpf_skb_pull_data(skb, 0) < 0) {
         return TC_ACT_OK;
     }
 
-    // We only want unicast packets
-    if (skb->pkt_type == PACKET_BROADCAST || skb->pkt_type == PACKET_MULTICAST) {
-        return TC_ACT_OK;
-    }  
+    // Only process unicast packets
+    // if (skb->pkt_type == PACKET_BROADCAST || skb->pkt_type == PACKET_MULTICAST) {
+    //     return TC_ACT_OK;
+    // }  
 
     uint8_t* head = (uint8_t*)(long)skb->data;     // Start of the packet data
     uint8_t* tail = (uint8_t*)(long)skb->data_end; // End of the packet data
@@ -391,9 +415,6 @@ int connstatsout(struct __sk_buff* skb) {
 
     uint32_t offset = 0;
 
-    pkt.len = skb->len;
-    pkt.outbound = true;
-
     if (handle_ip_packet(head, tail, &offset, &pkt) == TC_ACT_OK) {
         return TC_ACT_OK;
     }
@@ -407,7 +428,10 @@ int connstatsout(struct __sk_buff* skb) {
         return TC_ACT_OK;
     }
 
-    if (update_metrics(&pkt) == TC_ACT_OK) {
+    pkt.len = skb->len;
+    pkt.outbound = true;
+
+    if (update_metrics(&pkt, globalm) == TC_ACT_OK) {
        return TC_ACT_OK;
     }
     
