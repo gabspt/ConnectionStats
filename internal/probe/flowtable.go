@@ -12,17 +12,17 @@ type FlowTable struct {
 }
 
 type Connection struct {
-	Protocol    string
-	L_ip        netip.Addr
-	R_ip        netip.Addr
-	L_Port      uint16
-	R_Port      uint16
-	Packets_in  uint32
-	Packets_out uint32
-	Ts_start    uint64
-	Ts_current  uint64
-	Bytes_in    uint64
-	Bytes_out   uint64
+	Protocol string
+	L_ip     netip.Addr
+	R_ip     netip.Addr
+	L_Port   uint16
+	R_Port   uint16
+	Inpps    uint64
+	Outpps   uint64
+	Inbpp    uint64
+	Outbpp   uint64
+	Inboutb  uint64
+	Inpoutp  uint64
 }
 
 // NewFlowTable Constructs a new FlowTable
@@ -80,9 +80,9 @@ func (table *FlowTable) GetConnList() []Connection {
 	table.Range(func(key, value interface{}) bool {
 
 		fid, okid := key.(probeFlowId)
-		fm, okm := value.(probeFlowMetrics)
+		fs, oks := value.(probeFlowStats)
 
-		if okid && okm {
+		if okid && oks {
 
 			protoc, ok := ipProtoNums[fid.Protocol]
 			if !ok {
@@ -98,17 +98,17 @@ func (table *FlowTable) GetConnList() []Connection {
 			}
 
 			connection := Connection{
-				Protocol:    protoc,
-				L_ip:        lip,
-				R_ip:        rip,
-				L_Port:      fid.L_port,
-				R_Port:      fid.R_port,
-				Packets_in:  fm.PacketsIn,
-				Packets_out: fm.PacketsOut,
-				Ts_start:    fm.TsStart,
-				Ts_current:  fm.TsCurrent,
-				Bytes_in:    fm.BytesIn,
-				Bytes_out:   fm.BytesOut,
+				Protocol: protoc,
+				L_ip:     lip,
+				R_ip:     rip,
+				L_Port:   fid.L_port,
+				R_Port:   fid.R_port,
+				Inpps:    fs.Inpps,
+				Outpps:   fs.Outpps,
+				Inbpp:    fs.Inbpp,
+				Outbpp:   fs.Outbpp,
+				Inboutb:  fs.Inboutb,
+				Inpoutp:  fs.Inpoutp,
 			}
 
 			connlist = append(connlist, connection)

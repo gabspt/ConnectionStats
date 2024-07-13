@@ -14,7 +14,7 @@ import os
 parser = argparse.ArgumentParser(description='Python client for the connstats service')
 
 # Add server_ip argument
-parser.add_argument('--server_ip', type=str, default='192.168.1.204', help='grpc server ip address')
+parser.add_argument('--server', type=str, default='192.168.1.204', help='grpc server ip address')
 #parser.add_argument('--server_ip', type=str, required=True, help='grpc server ip address')
 parser.add_argument('--rtime', type=int, default=6, help='refresh time in seconds to collect the stats')
 
@@ -22,11 +22,13 @@ parser.add_argument('--rtime', type=int, default=6, help='refresh time in second
 args = parser.parse_args()
 
 # Assign the arguments to variables
-server_ip = args.server_ip
+server = args.server
 rtime = args.rtime
 
 REFRESH_TIME = rtime  # seconds
-SERVER_IP_PORT = f"{server_ip}:50051"
+SERVER_IP_PORT = f"{server}:50051"
+
+scaleFactor = 1000
 
 def convert_to_ipv4(ipv6_address):
     try:
@@ -61,12 +63,12 @@ def run():
             Protocol = []
             Local = []
             Remote = []
-            PacketsIn = []
-            PacketsOut = []
-            BytesIn = []
-            BytesOut = []
-            TsStart = []
-            TsCurrent = []
+            # PacketsIn = []
+            # PacketsOut = []
+            # BytesIn = []
+            # BytesOut = []
+            # TsStart = []
+            # TsCurrent = []
             Inpps = []
             Outpps = []
             InBpp = []
@@ -78,34 +80,34 @@ def run():
                 Protocol.append(connection.protocol)
                 Local.append(f"{convert_to_ipv4(connection.l_ip)}:{connection.l_port}")
                 Remote.append(f"{convert_to_ipv4(connection.r_ip)}:{connection.r_port}")
-                PacketsIn.append(connection.packets_in)
-                PacketsOut.append(connection.packets_out)
-                BytesIn.append(connection.bytes_in)
-                BytesOut.append(connection.bytes_out)
-                TsStart.append(connection.ts_start)
-                TsCurrent.append(connection.ts_current)
+                Inpps.append(connection.inpps/scaleFactor)
+                Outpps.append(connection.outpps/scaleFactor)
+                InBpp.append(connection.inbpp/scaleFactor)
+                OutBpp.append(connection.outbpp/scaleFactor)
+                InBoutB.append(connection.inboutb/scaleFactor)
+                InPoutP.append(connection.inpoutp/scaleFactor)
                 
-                time_diff = (connection.ts_current - connection.ts_start) / 1000000000
-                if time_diff> 0:
-                    Inpps.append(round(connection.packets_in / time_diff, 3))
-                    Outpps.append(round(connection.packets_out / time_diff, 3))
-                else:                 
-                    Inpps.append(0)
-                    Outpps.append(0)
+                # time_diff = (connection.ts_current - connection.ts_start) / 1000000000
+                # if time_diff> 0:
+                #     Inpps.append(round(connection.packets_in / time_diff, 3))
+                #     Outpps.append(round(connection.packets_out / time_diff, 3))
+                # else:                 
+                #     Inpps.append(0)
+                #     Outpps.append(0)
                 
-                if connection.packets_in > 0:
-                    InBpp.append(round(connection.bytes_in / connection.packets_in, 3))
-                else:
-                    InBpp.append(0)
+                # if connection.packets_in > 0:
+                #     InBpp.append(round(connection.bytes_in / connection.packets_in, 3))
+                # else:
+                #     InBpp.append(0)
                 
-                if connection.packets_out > 0:
-                    OutBpp.append(round(connection.bytes_out / connection.packets_out, 3))
-                    InPoutP.append(round(connection.packets_in / connection.packets_out, 3))
-                    InBoutB.append(round(connection.bytes_in / connection.bytes_out, 3))
-                else:
-                    OutBpp.append(0)
-                    InPoutP.append(0)
-                    InBoutB.append(0)
+                # if connection.packets_out > 0:
+                #     OutBpp.append(round(connection.bytes_out / connection.packets_out, 3))
+                #     InPoutP.append(round(connection.packets_in / connection.packets_out, 3))
+                #     InBoutB.append(round(connection.bytes_in / connection.bytes_out, 3))
+                # else:
+                #     OutBpp.append(0)
+                #     InPoutP.append(0)
+                #     InBoutB.append(0)
 
             dfStats = pd.DataFrame({
                 'Protocol': Protocol,
@@ -119,17 +121,17 @@ def run():
                 'inPoutP': InPoutP
             })
 
-            df = pd.DataFrame({
-                'Protocol': Protocol,
-                'Local': Local,
-                'Remote': Remote,
-                'PacketsIN': PacketsIn,
-                'PacketsOUT': PacketsOut,
-                'BytesIN': BytesIn,
-                'BytesOUT': BytesOut,
-                'TsStart': TsStart,
-                'TsCurrent': TsCurrent
-            })
+            # df = pd.DataFrame({
+            #     'Protocol': Protocol,
+            #     'Local': Local,
+            #     'Remote': Remote,
+            #     'PacketsIN': PacketsIn,
+            #     'PacketsOUT': PacketsOut,
+            #     'BytesIN': BytesIn,
+            #     'BytesOUT': BytesOut,
+            #     'TsStart': TsStart,
+            #     'TsCurrent': TsCurrent
+            # })
                         
             #print(df)  
             #print("")  
@@ -138,10 +140,10 @@ def run():
 
             # Guardar el DataFrame metricas en un archivo CSV
             #dfStats.to_csv('datos.csv', index=False)  
-            if not os.path.isfile('datosmetrics.csv'):
-                df.to_csv('datosmetrics.csv', header=True, index=False)
-            else: 
-                df.to_csv('datosmetrics.csv', mode='a', header=False, index=False)
+            # if not os.path.isfile('datosmetrics.csv'):
+            #     df.to_csv('datosmetrics.csv', header=True, index=False)
+            # else: 
+            #     df.to_csv('datosmetrics.csv', mode='a', header=False, index=False)
 
             # Guardar el DataFrame stats en un archivo CSV
             #dfStats.to_csv('datos.csv', index=False)  

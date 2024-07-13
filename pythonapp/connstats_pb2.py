@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z!ConnectionStats/connstatsprotobuf',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0f\x63onnstats.proto\x12\x11\x63onnstatsprotobuf\"\xd2\x01\n\x0e\x43onnectionStat\x12\x10\n\x08protocol\x18\x01 \x01(\t\x12\x0c\n\x04l_ip\x18\x02 \x01(\t\x12\x0c\n\x04r_ip\x18\x03 \x01(\t\x12\x0e\n\x06l_port\x18\x04 \x01(\r\x12\x0e\n\x06r_port\x18\x05 \x01(\r\x12\x12\n\npackets_in\x18\x06 \x01(\r\x12\x13\n\x0bpackets_out\x18\x07 \x01(\r\x12\x10\n\x08ts_start\x18\x08 \x01(\x04\x12\x12\n\nts_current\x18\t \x01(\x04\x12\x10\n\x08\x62ytes_in\x18\n \x01(\x04\x12\x11\n\tbytes_out\x18\x0b \x01(\x04\"\x0e\n\x0cStatsRequest\"A\n\nStatsReply\x12\x33\n\x08\x63onnstat\x18\x01 \x03(\x0b\x32!.connstatsprotobuf.ConnectionStat2`\n\x0cStatsService\x12P\n\x0c\x43ollectStats\x12\x1f.connstatsprotobuf.StatsRequest\x1a\x1d.connstatsprotobuf.StatsReply\"\x00\x42#Z!ConnectionStats/connstatsprotobufb\x06proto3'
+  serialized_pb=b'\n\x0f\x63onnstats.proto\x12\x11\x63onnstatsprotobuf\"\xbe\x01\n\x0e\x43onnectionStat\x12\x10\n\x08protocol\x18\x01 \x01(\t\x12\x0c\n\x04l_ip\x18\x02 \x01(\t\x12\x0c\n\x04r_ip\x18\x03 \x01(\t\x12\x0e\n\x06l_port\x18\x04 \x01(\r\x12\x0e\n\x06r_port\x18\x05 \x01(\r\x12\r\n\x05inpps\x18\x06 \x01(\x04\x12\x0e\n\x06outpps\x18\x07 \x01(\x04\x12\r\n\x05inbpp\x18\x08 \x01(\x04\x12\x0e\n\x06outbpp\x18\t \x01(\x04\x12\x0f\n\x07inboutb\x18\n \x01(\x04\x12\x0f\n\x07inpoutp\x18\x0b \x01(\x04\"\x0e\n\x0cStatsRequest\"A\n\nStatsReply\x12\x33\n\x08\x63onnstat\x18\x01 \x03(\x0b\x32!.connstatsprotobuf.ConnectionStat2`\n\x0cStatsService\x12P\n\x0c\x43ollectStats\x12\x1f.connstatsprotobuf.StatsRequest\x1a\x1d.connstatsprotobuf.StatsReply\"\x00\x42#Z!ConnectionStats/connstatsprotobufb\x06proto3'
 )
 
 
@@ -69,42 +69,42 @@ _CONNECTIONSTAT = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='packets_in', full_name='connstatsprotobuf.ConnectionStat.packets_in', index=5,
-      number=6, type=13, cpp_type=3, label=1,
+      name='inpps', full_name='connstatsprotobuf.ConnectionStat.inpps', index=5,
+      number=6, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='packets_out', full_name='connstatsprotobuf.ConnectionStat.packets_out', index=6,
-      number=7, type=13, cpp_type=3, label=1,
+      name='outpps', full_name='connstatsprotobuf.ConnectionStat.outpps', index=6,
+      number=7, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='ts_start', full_name='connstatsprotobuf.ConnectionStat.ts_start', index=7,
+      name='inbpp', full_name='connstatsprotobuf.ConnectionStat.inbpp', index=7,
       number=8, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='ts_current', full_name='connstatsprotobuf.ConnectionStat.ts_current', index=8,
+      name='outbpp', full_name='connstatsprotobuf.ConnectionStat.outbpp', index=8,
       number=9, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='bytes_in', full_name='connstatsprotobuf.ConnectionStat.bytes_in', index=9,
+      name='inboutb', full_name='connstatsprotobuf.ConnectionStat.inboutb', index=9,
       number=10, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='bytes_out', full_name='connstatsprotobuf.ConnectionStat.bytes_out', index=10,
+      name='inpoutp', full_name='connstatsprotobuf.ConnectionStat.inpoutp', index=10,
       number=11, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
@@ -123,7 +123,7 @@ _CONNECTIONSTAT = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=39,
-  serialized_end=249,
+  serialized_end=229,
 )
 
 
@@ -147,8 +147,8 @@ _STATSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=251,
-  serialized_end=265,
+  serialized_start=231,
+  serialized_end=245,
 )
 
 
@@ -179,8 +179,8 @@ _STATSREPLY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=267,
-  serialized_end=332,
+  serialized_start=247,
+  serialized_end=312,
 )
 
 _STATSREPLY.fields_by_name['connstat'].message_type = _CONNECTIONSTAT
@@ -220,8 +220,8 @@ _STATSSERVICE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=334,
-  serialized_end=430,
+  serialized_start=314,
+  serialized_end=410,
   methods=[
   _descriptor.MethodDescriptor(
     name='CollectStats',

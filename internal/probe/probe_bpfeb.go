@@ -21,25 +21,32 @@ type probeFlowId struct {
 }
 
 type probeFlowMetrics struct {
-	PacketsIn    uint32
-	PacketsOut   uint32
-	BytesIn      uint64
-	BytesOut     uint64
-	TsStart      uint64
-	TsCurrent    uint64
-	FinCounter   uint8
-	AckCounter   uint8
-	FlowClosed   uint8
-	SynOrUdpToRb bool
-	_            [4]byte
+	PacketsIn  uint32
+	PacketsOut uint32
+	BytesIn    uint64
+	BytesOut   uint64
+	TsStart    uint64
+	TsCurrent  uint64
+	FinCounter uint8
+	AckCounter uint8
+	FlowClosed uint8
+	_          [5]byte
+}
+
+type probeFlowStats struct {
+	TsCurrent uint64
+	Inpps     uint64
+	Outpps    uint64
+	Inbpp     uint64
+	Outbpp    uint64
+	Inboutb   uint64
+	Inpoutp   uint64
 }
 
 type probeGlobalMetrics struct {
 	TotalProcessedpackets uint64
-	TotalTcpudppackets    uint64
 	TotalTcppackets       uint64
 	TotalUdppackets       uint64
-	TotalFlows            uint64
 	TotalTcpflows         uint64
 	TotalUdpflows         uint64
 }
@@ -93,6 +100,7 @@ type probeProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type probeMapSpecs struct {
+	Flowstats     *ebpf.MapSpec `ebpf:"flowstats"`
 	Flowstracker  *ebpf.MapSpec `ebpf:"flowstracker"`
 	Globalmetrics *ebpf.MapSpec `ebpf:"globalmetrics"`
 	Pipe          *ebpf.MapSpec `ebpf:"pipe"`
@@ -117,6 +125,7 @@ func (o *probeObjects) Close() error {
 //
 // It can be passed to loadProbeObjects or ebpf.CollectionSpec.LoadAndAssign.
 type probeMaps struct {
+	Flowstats     *ebpf.Map `ebpf:"flowstats"`
 	Flowstracker  *ebpf.Map `ebpf:"flowstracker"`
 	Globalmetrics *ebpf.Map `ebpf:"globalmetrics"`
 	Pipe          *ebpf.Map `ebpf:"pipe"`
@@ -124,6 +133,7 @@ type probeMaps struct {
 
 func (m *probeMaps) Close() error {
 	return _ProbeClose(
+		m.Flowstats,
 		m.Flowstracker,
 		m.Globalmetrics,
 		m.Pipe,

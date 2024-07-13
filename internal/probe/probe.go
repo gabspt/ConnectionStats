@@ -3,10 +3,11 @@ package probe
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
+
+	//"fmt"
 	"log"
-	"net"
-	"os"
+	//"net"
+	//"os"
 	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -26,8 +27,8 @@ const TCP_IDLE_TIME = 300000000000 //300000ms = 5min
 const UDP_IDLE_TIME = 200000000000 //200000ms = 3min and 20s
 const SINGLETON_TIME = 10000000000 //10000ms = 10s
 
-const EVICTION_TIME = 5                             // 5s time to evict entries from the flowstracker map in seconds
-const EVICTION_TIME_NS = EVICTION_TIME * 1000000000 // Convert EVICTION_TIME to nanoseconds
+//const EVICTION_TIME = 5                             // 5s time to evict entries from the flowstracker map in seconds
+//const EVICTION_TIME_NS = EVICTION_TIME * 1000000000 // Convert EVICTION_TIME to nanoseconds
 
 type probe struct {
 	iface      netlink.Link
@@ -47,7 +48,7 @@ func setRlimit() error {
 
 	return unix.Setrlimit(unix.RLIMIT_MEMLOCK, &unix.Rlimit{
 		Cur: tenMegaBytes,
-		Max: twentyMegaBytes,
+		Max: fortyMegaBytes,
 	})
 }
 
@@ -192,56 +193,56 @@ func (p *probe) PrintGlobalMetrics() {
 	log.Printf("Global metrics:")
 	log.Printf("---------------")
 	log.Printf("Total packets processed: %v", gm.TotalProcessedpackets)
-	log.Printf("Total packets analyzed (TCP+UDP): %v", gm.TotalTcpudppackets)
+	log.Printf("Total packets analyzed (TCP+UDP): %v", gm.TotalTcppackets+gm.TotalUdppackets)
 	log.Printf("Total TCP packets analyzed: %v", gm.TotalTcppackets)
 	log.Printf("Total UDP packets analyzed: %v", gm.TotalUdppackets)
-	log.Printf("Total flows analyzed: %v", gm.TotalFlows)
+	log.Printf("Total flows analyzed: %v", gm.TotalTcpflows+gm.TotalUdpflows)
 	log.Printf("Total TCP flows analyzed: %v", gm.TotalTcpflows)
 	log.Printf("Total UDP flows analyzed: %v", gm.TotalUdpflows)
 	log.Printf("")
 }
 
-func writeFlowStatsToFile(filename string, flowid probeFlowId, flowMetrics probeFlowMetrics) {
+// func writeFlowStatsToFile(filename string, flowid probeFlowId, flow_stats probeFlowStats) {
 
-	// Open the log file
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Println(err)
-	}
-	defer f.Close()
+// 	// Open the log file
+// 	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+// 	if err != nil {
+// 		log.Println(err)
+// 	}
+// 	defer f.Close()
 
-	// Check if the file is empty
-	fi, err := f.Stat()
-	if err != nil {
-		log.Println(err)
-	}
+// 	// Check if the file is empty
+// 	fi, err := f.Stat()
+// 	if err != nil {
+// 		log.Println(err)
+// 	}
 
-	// If the file is empty, write the header
-	if fi.Size() == 0 {
-		_, err = f.WriteString("Protocol,Local,Remote,PacketsIn,PacketsOut,BytesIn,BytesOut,TsDuration,TsStart,TsCurrent,FinCounter,FlowClosed\n")
-		if err != nil {
-			log.Println(err)
-		}
-	}
+// 	// If the file is empty, write the header
+// 	if fi.Size() == 0 {
+// 		_, err = f.WriteString("Protocol,Local,Remote,PacketsIn,PacketsOut,BytesIn,BytesOut,TsDuration,TsStart,TsCurrent,FinCounter,FlowClosed\n")
+// 		if err != nil {
+// 			log.Println(err)
+// 		}
+// 	}
 
-	// Write the flow stats to the log file
-	_, err = f.WriteString(fmt.Sprintf("%v,%v:%v,%v:%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
-		flowid.Protocol, net.IP(flowid.L_ip.In6U.U6Addr8[:]).String(), flowid.L_port, net.IP(flowid.R_ip.In6U.U6Addr8[:]).String(), flowid.R_port, flowMetrics.PacketsIn, flowMetrics.PacketsOut, flowMetrics.BytesIn, flowMetrics.BytesOut, float64(flowMetrics.TsCurrent-flowMetrics.TsStart)/1000000, flowMetrics.TsStart, flowMetrics.TsCurrent, flowMetrics.FinCounter, flowMetrics.FlowClosed))
-	if err != nil {
-		log.Println(err)
-	}
+// 	// Write the flow stats to the log file
+// 	_, err = f.WriteString(fmt.Sprintf("%v,%v:%v,%v:%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+// 		flowid.Protocol, net.IP(flowid.L_ip.In6U.U6Addr8[:]).String(), flowid.L_port, net.IP(flowid.R_ip.In6U.U6Addr8[:]).String(), flowid.R_port, flowMetrics.PacketsIn, flowMetrics.PacketsOut, flowMetrics.BytesIn, flowMetrics.BytesOut, float64(flowMetrics.TsCurrent-flowMetrics.TsStart)/1000000, flowMetrics.TsStart, flowMetrics.TsCurrent, flowMetrics.FinCounter, flowMetrics.FlowClosed))
+// 	if err != nil {
+// 		log.Println(err)
+// 	}
 
-}
+// }
 
 // LogFlowTable writes all flows remaining in the FlowTable to the log.
-func LogFlowTable(ft *FlowTable) {
-	ft.Range(func(key, value interface{}) bool {
-		flowId := key.(probeFlowId)
-		flowMetrics := value.(probeFlowMetrics)
-		writeFlowStatsToFile("flows_closed.txt", flowId, flowMetrics)
-		return true
-	})
-}
+// func LogFlowTable(ft *FlowTable) {
+// 	ft.Range(func(key, value interface{}) bool {
+// 		flowId := key.(probeFlowId)
+// 		flowMetrics := value.(probeFlowMetrics)
+// 		writeFlowStatsToFile("flows_closed.txt", flowId, flowMetrics)
+// 		return true
+// 	})
+// }
 
 func (p *probe) Close(ft *FlowTable) error {
 
@@ -262,7 +263,7 @@ func (p *probe) Close(ft *FlowTable) error {
 		return err
 	}
 
-	LogFlowTable(ft)
+	//LogFlowTable(ft)
 	return nil
 }
 
@@ -289,16 +290,16 @@ func UnmarshalFlowRecord(in []byte) (Flowrecord, bool) {
 
 	// form the probeFlowMetrics struct
 	f_m := probeFlowMetrics{
-		PacketsIn:    binary.LittleEndian.Uint32(in[40:44]),
-		PacketsOut:   binary.LittleEndian.Uint32(in[44:48]),
-		BytesIn:      binary.LittleEndian.Uint64(in[48:56]),
-		BytesOut:     binary.LittleEndian.Uint64(in[56:64]),
-		TsStart:      binary.LittleEndian.Uint64(in[64:72]),
-		TsCurrent:    binary.LittleEndian.Uint64(in[72:80]),
-		FinCounter:   in[80],
-		AckCounter:   in[81],
-		FlowClosed:   in[82],
-		SynOrUdpToRb: in[83] == 1,
+		PacketsIn:  binary.LittleEndian.Uint32(in[40:44]),
+		PacketsOut: binary.LittleEndian.Uint32(in[44:48]),
+		BytesIn:    binary.LittleEndian.Uint64(in[48:56]),
+		BytesOut:   binary.LittleEndian.Uint64(in[56:64]),
+		TsStart:    binary.LittleEndian.Uint64(in[64:72]),
+		TsCurrent:  binary.LittleEndian.Uint64(in[72:80]),
+		FinCounter: in[80],
+		AckCounter: in[81],
+		FlowClosed: in[82],
+		//SynOrUdpToRb: in[83] == 1,
 	}
 	//log.Printf("Binary: L_ip %v R_ip %v L_port %v R_port %v Protocol %v", in[0:16], in[16:32], in[32:34], in[34:36], in[36])
 	//log.Printf("Binary: PacketsIn %v PacketsOut %v BytesIn %v BytesOut %v TsStart %v TsCurrent %v Fin %v", in[37:41], in[41:45], in[45:53], in[53:61], in[61:69], in[69:77], in[77])
@@ -309,25 +310,27 @@ func UnmarshalFlowRecord(in []byte) (Flowrecord, bool) {
 	}, true
 }
 
-func CheckIfStaleEntry(flowid probeFlowId, flowmetrics probeFlowMetrics) bool {
+func CheckIfStaleEntry(flowid probeFlowId, flow_stats probeFlowStats, timeAgrupation uint64) bool {
+	evtime_ns := timeAgrupation * 1000000000
 	var stale bool
-	lastts := flowmetrics.TsCurrent
+	lastts := flow_stats.TsCurrent
 	now := timer.GetNanosecSinceBoot()
 	time_flow := now - lastts
-	if (flowmetrics.PacketsIn + flowmetrics.PacketsOut) > 1 {
-		if (flowid.Protocol == 6) && (time_flow > (TCP_IDLE_TIME - EVICTION_TIME_NS)) { //TCP and 300000ms = 5min //plus 10sec que es la frecuencia del evict
+	//if (flowmetrics.PacketsIn + flowmetrics.PacketsOut) > 1 {
+	if flow_stats.Inpoutp > 1 {
+		if (flowid.Protocol == 6) && (time_flow > (TCP_IDLE_TIME - evtime_ns)) { //TCP and 300000ms = 5min //plus 10sec que es la frecuencia del evict
 			stale = true
-		} else if (flowid.Protocol == 17) && (time_flow > (UDP_IDLE_TIME - EVICTION_TIME_NS)) { //UDP and 200000ms = 3min and 20s //plus 5sec que es la frecuencia del evict
+		} else if (flowid.Protocol == 17) && (time_flow > (UDP_IDLE_TIME - evtime_ns)) { //UDP and 200000ms = 3min and 20s //plus 5sec que es la frecuencia del evict
 			stale = true
 		}
-	} else if time_flow > (SINGLETON_TIME - EVICTION_TIME_NS) { //10s //plus 10sec que es la frecuencia del evict -> no packets have been observed for this flow 10 seconds after the initial packet
+	} else if time_flow > (SINGLETON_TIME - evtime_ns) { //10s //plus 10sec que es la frecuencia del evict -> no packets have been observed for this flow 10 seconds after the initial packet
 		stale = true
 	}
 	return stale
 }
 
 // Run starts the probe
-func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
+func Run(ctx context.Context, iface netlink.Link, ft *FlowTable, timeAgrupation uint64) error {
 	log.Printf("Starting up the probe at interface %v", iface.Attrs().Name)
 
 	probe, err := newProbe(iface)
@@ -336,32 +339,36 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 	}
 
 	flowstrackermap := probe.bpfObjects.probeMaps.Flowstracker
+	flowstatsmap := probe.bpfObjects.probeMaps.Flowstats
 
 	//evict all entries from the flowstracker map and copy to the flowtable every 5 seconds
-	tickerevict := time.NewTicker(time.Second * EVICTION_TIME)
+	tickerevict := time.NewTicker(time.Second * time.Duration(timeAgrupation))
 	defer tickerevict.Stop()
 	go func() {
 		for range tickerevict.C {
 			//ToDo in ConnStats Version 2.0: Deal with updating the flowtable considering the flows that were created there because didn't fit in the hashmap and came via ringbuf. Maybe checking the oldest tstart
 
-			iterator := flowstrackermap.Iterate()
+			//iterator := flowstrackermap.Iterate()
+			iterator := flowstatsmap.Iterate()
 			var fid probeFlowId
-			var flowmetrics probeFlowMetrics
+			//var flowmetrics probeFlowMetrics
+			var flow_stats probeFlowStats
 			keysToDelete := []probeFlowId{}
 			//iterate over the hash map flowstrackermap
-			for iterator.Next(&fid, &flowmetrics) {
+			for iterator.Next(&fid, &flow_stats) {
 				//lookup if flow id exists in the flowtable ft and update accordingly
 				//if true to UpdateFlowTable (FlowTable updated successfully), delete packets and bytes metrics from flowstrackermap
-				ft.Store(fid, flowmetrics)
+				ft.Store(fid, flow_stats)
 
-				if CheckIfStaleEntry(fid, flowmetrics) {
+				if CheckIfStaleEntry(fid, flow_stats, timeAgrupation) {
 					keysToDelete = append(keysToDelete, fid)
 				}
 			}
 			//if keys to delete is not empty, delete them from the flowstrackermap and the flowtable and write the flow stats to a file
 			if len(keysToDelete) > 0 {
-				writeFlowStatsToFile("flows_closed.txt", fid, flowmetrics)
+				//writeFlowStatsToFile("flows_closed.txt", fid, flow_stats)
 				flowstrackermap.BatchDelete(keysToDelete, nil)
+				flowstatsmap.BatchDelete(keysToDelete, nil)
 				for _, key := range keysToDelete {
 					ft.Remove(key) //Delete also from the flowtable o hacer un metodo remove batch
 				}
@@ -369,16 +376,17 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 				//log.Printf(" ")
 			}
 
-			flowstrackermap.BatchDelete(keysToDelete, nil)
-			for _, key := range keysToDelete {
-				ft.Remove(key) //Delete also from the flowtable o hacer un metodo remove batch
-			}
+			// flowstrackermap.BatchDelete(keysToDelete, nil)
+			// flowstatsmap.BatchDelete(keysToDelete, nil)
+			// for _, key := range keysToDelete {
+			// 	ft.Remove(key) //Delete also from the flowtable o hacer un metodo remove batch
+			// }
 			//log.Printf("FlowTable size: %v\n", ft.Size())
 			//log.Printf(" ")
 		}
 	}()
 
-	// Create a ring buffer reader
+	//Create a ring buffer reader
 	pipe := probe.bpfObjects.probeMaps.Pipe
 	ringreader, err := ringbuf.NewReader(pipe)
 	if err != nil {
@@ -403,7 +411,7 @@ func Run(ctx context.Context, iface netlink.Link, ft *FlowTable) error {
 
 			// if flow record fin is true, delete from flow table
 			if flowrecord.fm.FlowClosed == 1 || flowrecord.fm.FlowClosed == 2 {
-				writeFlowStatsToFile("flows_closed.txt", flowrecord.fid, flowrecord.fm)
+				//writeFlowStatsToFile("flows_closed.txt", flowrecord.fid, flowrecord.fm)
 				ft.Remove(flowrecord.fid)
 			}
 

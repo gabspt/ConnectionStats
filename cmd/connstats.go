@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	ifaceFlag = flag.String("interface", "enp0s3", "interface to attach the probe to") //enp0s3
-	port      = flag.Int("port", 50051, "The grpc server port")
-	ft        = probe.NewFlowTable()
+	ifaceFlag          = flag.String("i", "enp0s8", "interface to attach the probe to") //enp0s3
+	port               = flag.Int("port", 50051, "The grpc server port")
+	timeAgrupationFlag = flag.Uint64("t", 5, "how often to evict the flow statistics from the kernel (in seconds)")
+	ft                 = probe.NewFlowTable()
 )
 
 // signalHandler catches SIGINT and SIGTERM then exits the program
@@ -61,17 +62,17 @@ func (s *server) CollectStats(ctx context.Context, req *pb.StatsRequest) (*pb.St
 	connlist := ft.GetConnList()
 	for _, conn := range connlist {
 		connMsg := &pb.ConnectionStat{
-			Protocol:   conn.Protocol,
-			LIp:        conn.L_ip.String(),
-			RIp:        conn.R_ip.String(),
-			LPort:      uint32(conn.L_Port),
-			RPort:      uint32(conn.R_Port),
-			PacketsIn:  conn.Packets_in,
-			PacketsOut: conn.Packets_out,
-			TsStart:    conn.Ts_start,
-			TsCurrent:  conn.Ts_current,
-			BytesIn:    conn.Bytes_in,
-			BytesOut:   conn.Bytes_out,
+			Protocol: conn.Protocol,
+			LIp:      conn.L_ip.String(),
+			RIp:      conn.R_ip.String(),
+			LPort:    uint32(conn.L_Port),
+			RPort:    uint32(conn.R_Port),
+			Inpps:    conn.Inpps,
+			Outpps:   conn.Outpps,
+			Inbpp:    conn.Inbpp,
+			Outbpp:   conn.Outbpp,
+			Inboutb:  conn.Inboutb,
+			Inpoutp:  conn.Inpoutp,
 		}
 		//fmt.Printf("connMsg %v\n", connMsg)
 		response.Connstat = append(response.Connstat, connMsg)
@@ -111,7 +112,7 @@ func main() {
 	}()
 
 	//Run the probe. Pass the context and the network interface
-	if err := probe.Run(ctx, iface, ft); err != nil {
+	if err := probe.Run(ctx, iface, ft, *timeAgrupationFlag); err != nil {
 		log.Fatalf("Failed running the probe: %v", err)
 	}
 

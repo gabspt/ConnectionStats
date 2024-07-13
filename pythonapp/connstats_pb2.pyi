@@ -6,30 +6,30 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class ConnectionStat(_message.Message):
-    __slots__ = ["protocol", "l_ip", "r_ip", "l_port", "r_port", "packets_in", "packets_out", "ts_start", "ts_current", "bytes_in", "bytes_out"]
+    __slots__ = ["protocol", "l_ip", "r_ip", "l_port", "r_port", "inpps", "outpps", "inbpp", "outbpp", "inboutb", "inpoutp"]
     PROTOCOL_FIELD_NUMBER: _ClassVar[int]
     L_IP_FIELD_NUMBER: _ClassVar[int]
     R_IP_FIELD_NUMBER: _ClassVar[int]
     L_PORT_FIELD_NUMBER: _ClassVar[int]
     R_PORT_FIELD_NUMBER: _ClassVar[int]
-    PACKETS_IN_FIELD_NUMBER: _ClassVar[int]
-    PACKETS_OUT_FIELD_NUMBER: _ClassVar[int]
-    TS_START_FIELD_NUMBER: _ClassVar[int]
-    TS_CURRENT_FIELD_NUMBER: _ClassVar[int]
-    BYTES_IN_FIELD_NUMBER: _ClassVar[int]
-    BYTES_OUT_FIELD_NUMBER: _ClassVar[int]
+    INPPS_FIELD_NUMBER: _ClassVar[int]
+    OUTPPS_FIELD_NUMBER: _ClassVar[int]
+    INBPP_FIELD_NUMBER: _ClassVar[int]
+    OUTBPP_FIELD_NUMBER: _ClassVar[int]
+    INBOUTB_FIELD_NUMBER: _ClassVar[int]
+    INPOUTP_FIELD_NUMBER: _ClassVar[int]
     protocol: str
     l_ip: str
     r_ip: str
     l_port: int
     r_port: int
-    packets_in: int
-    packets_out: int
-    ts_start: int
-    ts_current: int
-    bytes_in: int
-    bytes_out: int
-    def __init__(self, protocol: _Optional[str] = ..., l_ip: _Optional[str] = ..., r_ip: _Optional[str] = ..., l_port: _Optional[int] = ..., r_port: _Optional[int] = ..., packets_in: _Optional[int] = ..., packets_out: _Optional[int] = ..., ts_start: _Optional[int] = ..., ts_current: _Optional[int] = ..., bytes_in: _Optional[int] = ..., bytes_out: _Optional[int] = ...) -> None: ...
+    inpps: int
+    outpps: int
+    inbpp: int
+    outbpp: int
+    inboutb: int
+    inpoutp: int
+    def __init__(self, protocol: _Optional[str] = ..., l_ip: _Optional[str] = ..., r_ip: _Optional[str] = ..., l_port: _Optional[int] = ..., r_port: _Optional[int] = ..., inpps: _Optional[int] = ..., outpps: _Optional[int] = ..., inbpp: _Optional[int] = ..., outbpp: _Optional[int] = ..., inboutb: _Optional[int] = ..., inpoutp: _Optional[int] = ...) -> None: ...
 
 class StatsRequest(_message.Message):
     __slots__ = []

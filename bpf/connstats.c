@@ -15,6 +15,9 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 
+#define SCALE_FACTOR 1000
+#define NANOS_PER_SECOND 1000000000
+
 struct packet_t {
     struct in6_addr src_ip;
     struct in6_addr dst_ip;
@@ -46,7 +49,22 @@ struct flow_metrics {
     __u8 fin_counter;
     __u8 ack_counter;
     __u8 flow_closed; // 0 flow open, 1 flow ended normally, 2 flow ended anormally
-    bool syn_or_udp_to_rb;
+    //bool syn_or_udp_to_rb;
+};
+
+struct flow_stats { 
+    //__u32 packets_in;
+    //__u32 packets_out;
+    //__u64 bytes_in;
+    //__u64 bytes_out;
+    //__u64 ts_start;
+    __u64 ts_current; 
+    __u64 inpps; //inbound packets per second
+    __u64 outpps; //outbound packets per second
+    __u64 inbpp; //inbound bytes per packet
+    __u64 outbpp; //outbound bytes per packet
+    __u64 inboutb; //ratio inbound/outbound bytes
+    __u64 inpoutp; //ratio inbound/outbound packets
 };
 
 struct flow_record {
@@ -56,15 +74,13 @@ struct flow_record {
 
 struct global_metrics {
     __u64 total_processedpackets; 
-    __u64 total_tcpudppackets;
     __u64 total_tcppackets;
     __u64 total_udppackets;
-    __u64 total_flows;
     __u64 total_tcpflows;
     __u64 total_udpflows;
 };
 
-bool syndidntfitsentrb = false;
+//bool syndidntfitsentrb = false;
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -79,6 +95,14 @@ struct {
     __type(value, struct flow_metrics);
     __uint(map_flags, BPF_F_NO_PREALLOC);
 } flowstracker SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1 << 24);
+    __type(key, struct flow_id);
+    __type(value, struct flow_stats);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+} flowstats SEC(".maps");
 
 // struct {
 //     __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
@@ -194,16 +218,52 @@ static inline int submit_flow_record(struct flow_id flowid, struct flow_metrics 
     return 0;
 }
 
+static inline void calculate_stats(struct flow_metrics *flowmetrics, struct flow_stats *flowstats) {
+
+    __u64 duration = (flowmetrics->ts_current - flowmetrics->ts_start);
+
+    if (duration > 0) {
+        flowstats->inpps = ((__u64)flowmetrics->packets_in * SCALE_FACTOR * NANOS_PER_SECOND) / duration;
+        flowstats->outpps = ((__u64)flowmetrics->packets_out * SCALE_FACTOR * NANOS_PER_SECOND) / duration;
+    } else {
+        flowstats->inpps = 0;
+        flowstats->outpps = 0;
+    }
+
+    if (flowmetrics->packets_in > 0) {
+        flowstats->inbpp = (flowmetrics->bytes_in * SCALE_FACTOR) / flowmetrics->packets_in;
+    } else {
+        flowstats->inbpp = 0;
+    }
+
+    if (flowmetrics->packets_out > 0) {
+        flowstats->outbpp = (flowmetrics->bytes_out * SCALE_FACTOR) / flowmetrics->packets_out;
+    } else {
+        flowstats->outbpp = 0;
+    }
+
+    if (flowmetrics->bytes_out > 0) {
+        flowstats->inboutb = (flowmetrics->bytes_in * SCALE_FACTOR) / flowmetrics->bytes_out;
+    } else {
+        flowstats->inboutb = 0;
+    }
+
+    if (flowmetrics->packets_out > 0) {
+        flowstats->inpoutp = ((__u64)flowmetrics->packets_in * SCALE_FACTOR) / flowmetrics->packets_out;
+    } else {
+        flowstats->inpoutp = 0;
+    }
+}
+
 static inline int update_metrics(struct packet_t* pkt, struct global_metrics *globalm) {
     //update global metrics total_packets, total_tcp_packets, total_udp_packets 
-    __u32 keygb = 0;
-    globalm->total_tcpudppackets += 1;
+    //__u32 keygb = 0;
     if (pkt->protocol == IPPROTO_TCP) {
         globalm->total_tcppackets += 1;
     } else {
         globalm->total_udppackets += 1;
     }
-    bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
+    //bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
 
     //empezando a conformar el flow id
     struct flow_id flowid = {0};
@@ -248,11 +308,25 @@ static inline int update_metrics(struct packet_t* pkt, struct global_metrics *gl
         } else if (pkt->rst == true) { //flow ended anormally
             flowmetrics->flow_closed = 2;
         } else { //flow still open -> update hash map and return
-            long ret = bpf_map_update_elem(&flowstracker, &flowid, flowmetrics, BPF_EXIST);
-            if (ret != 0) {
+            //update flow metrics map
+            long ret1 = bpf_map_update_elem(&flowstracker, &flowid, flowmetrics, BPF_EXIST);
+            if (ret1 != 0) {
                 //bpf_printk("error updating flow %d\n", ret);
                 return TC_ACT_OK;
             }
+            //calculate flow stats to update flow stats map
+            struct flow_stats flow_stats = {0};
+            //flow_stats.packets_in = flowmetrics->packets_in;
+            //flow_stats.packets_out = flowmetrics->packets_out;
+            //flow_stats.bytes_in = flowmetrics->bytes_in;
+            //flow_stats.bytes_out = flowmetrics->bytes_out;
+            //flow_stats.ts_start = flowmetrics->ts_start;
+            flow_stats.ts_current = flowmetrics->ts_current;
+            calculate_stats(flowmetrics, &flow_stats);
+            long ret2 = bpf_map_update_elem(&flowstats, &flowid, &flow_stats, BPF_EXIST);
+            if (ret2 != 0) {
+                return TC_ACT_OK;
+            }         
             return TC_ACT_OK;
         }
 
@@ -265,55 +339,71 @@ static inline int update_metrics(struct packet_t* pkt, struct global_metrics *gl
         return TC_ACT_OK;
 
     } else {
-        //flow doesn't exist, create new flow
-        struct flow_metrics new_flowm = {0};
-        new_flowm.ts_start = pkt->ts;    
-        new_flowm.ts_current = pkt->ts;
-        if (pkt->outbound == true) { //update outbound egress metrics
-            new_flowm.packets_out = 1;
-            new_flowm.bytes_out = pkt->len;
-        } else { //update inbound ingress metrics
-            new_flowm.packets_in = 1;
-            new_flowm.bytes_in = pkt->len;
-        }
-        if ((pkt->syn == true && pkt->ack == false) || (pkt->protocol == IPPROTO_UDP)) { //new tcp syn or udp connection, add to flowstracker map
+        //flow doesn't exist
         
+        if ((pkt->syn == true && pkt->ack == false) || (pkt->protocol == IPPROTO_UDP)) { //new tcp syn or udp connection, add to flowstracker map
+            //create new flow TCP or UDP
+
             //update total flows global metrics
-            globalm->total_flows += 1;
             if (pkt->protocol == IPPROTO_TCP) {
                 globalm->total_tcpflows += 1;
             } else {
                 globalm->total_udpflows += 1;
             }
-            bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
+            //bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
+
+            struct flow_metrics new_flowm = {0};
+            new_flowm.ts_start = pkt->ts;    
+            new_flowm.ts_current = pkt->ts;
+            if (pkt->outbound == true) { //update outbound egress metrics
+                new_flowm.packets_out = 1;
+                new_flowm.bytes_out = pkt->len;
+            } else { //update inbound ingress metrics
+                new_flowm.packets_in = 1;
+                new_flowm.bytes_in = pkt->len;
+            }
             
             //add to flowstracker hash map
-            long ret = bpf_map_update_elem(&flowstracker, &flowid, &new_flowm, BPF_NOEXIST);
-            if (ret != 0) {
+            long ret1 = bpf_map_update_elem(&flowstracker, &flowid, &new_flowm, BPF_NOEXIST);
+            if (ret1 != 0) {
                 //bpf_printk("error adding new flow %d\n", ret); 
                 // //maybe because map is full -> send to userspace via ringbuf to avoid losing flows
-                new_flowm.syn_or_udp_to_rb = true;
-                if (submit_flow_record(flowid, &new_flowm) == TC_ACT_OK) {
-                    return TC_ACT_OK;
-                }   
-                //if tcp set syndidntfitsentrb to true
-                if (pkt->protocol == IPPROTO_TCP) {
-                    syndidntfitsentrb = true; // didnt fit, sent to userspace via ringbuf successfully        
-                }                
+                //new_flowm.syn_or_udp_to_rb = true;
+                // if (submit_flow_record(flowid, &new_flowm) == TC_ACT_OK) {
+                //     return TC_ACT_OK;
+                // }   
+                ////if tcp set syndidntfitsentrb to true
+                // if (pkt->protocol == IPPROTO_TCP) {
+                //     syndidntfitsentrb = true; // didnt fit, sent to userspace via ringbuf successfully        
+                // } 
+                return TC_ACT_OK;               
             }
+            // calculate flow stats to update flow stats map
+            struct flow_stats flow_stats = {0};
+            //flow_stats.packets_in = new_flowm.packets_in;
+            //flow_stats.packets_out = new_flowm.packets_out;
+            //flow_stats.bytes_in = new_flowm.bytes_in;
+            //flow_stats.bytes_out = new_flowm.bytes_out;
+            //flow_stats.ts_start = new_flowm.ts_start;
+            flow_stats.ts_current = new_flowm.ts_current;
+            calculate_stats(&new_flowm, &flow_stats);
+            long ret2 = bpf_map_update_elem(&flowstats, &flowid, &flow_stats, BPF_NOEXIST);
+            if (ret2 != 0) {
+                return TC_ACT_OK;
+            }  
 
-        } else{
+        } //else{
             //es un tcp no syn que no existe en el hashmap, 
             //enviar a userspace para revisar alla si pertenece a un flujo que se inicio en el userspace por el ringbuf
             //pero solo si ya se envio alguna vez un syn a userspace
             //ademas senalizarlo
-            if (syndidntfitsentrb == true) {
-                new_flowm.syn_or_udp_to_rb = false;
-                if (submit_flow_record(flowid, &new_flowm) == TC_ACT_OK) {
-                    return TC_ACT_OK;
-                }
-            }    
-        }
+            // if (syndidntfitsentrb == true) {
+            //     new_flowm.syn_or_udp_to_rb = false;
+            //     if (submit_flow_record(flowid, &new_flowm) == TC_ACT_OK) {
+            //         return TC_ACT_OK;
+            //     }
+            // }    
+        //}
         return TC_ACT_OK;
     } 
 }
@@ -326,17 +416,18 @@ int connstatsin(struct __sk_buff* skb) {
     struct global_metrics *globalm = bpf_map_lookup_elem(&globalmetrics, &keygb);
     if (!globalm) {
         struct global_metrics new_globalm = {0};
-        new_globalm.total_processedpackets = 1;
+        //new_globalm.total_processedpackets = 1;
         bpf_map_update_elem(&globalmetrics, &keygb, &new_globalm, BPF_ANY);
         globalm = &new_globalm;
-    } else {
-        globalm->total_processedpackets += 1;
-        bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
-    }
+    } //else {
+       // globalm->total_processedpackets += 1;
+       // bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
+    //}
 
     //In case the skb is non-linear, pull the data of each packet in a linear region of memory
     if (bpf_skb_pull_data(skb, 0) < 0) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     // Only process unicast packets
@@ -348,7 +439,8 @@ int connstatsin(struct __sk_buff* skb) {
     uint8_t* tail = (uint8_t*)(long)skb->data_end; // End of the packet data
 
     if (head + sizeof(struct ethhdr) > tail) { // Not an Ethernet frame
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     struct packet_t pkt = { 0 };  
@@ -356,26 +448,33 @@ int connstatsin(struct __sk_buff* skb) {
     uint32_t offset = 0;
 
     if (handle_ip_packet(head, tail, &offset, &pkt) == TC_ACT_OK) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     // Check if TCP/UDP header is fitting this packet
     if (head + offset + sizeof(struct tcphdr) > tail || head + offset + sizeof(struct udphdr) > tail) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     if (handle_ip_segment(head, tail, &offset, &pkt) == TC_ACT_OK) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     pkt.len = skb->len;
     pkt.outbound = false;
 
     if (update_metrics(&pkt, globalm) == TC_ACT_OK) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
-    return TC_ACT_OK;
+    update_and_return:
+    // Asegurarse de que global_metrics se actualice antes de salir
+        bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY);
+        return TC_ACT_OK;
 }
 
 SEC("classifier/egress")
@@ -386,17 +485,20 @@ int connstatsout(struct __sk_buff* skb) {
     struct global_metrics *globalm = bpf_map_lookup_elem(&globalmetrics, &keygb);
     if (!globalm) {
         struct global_metrics new_globalm = {0};
-        new_globalm.total_processedpackets = 1;
+        //new_globalm.total_processedpackets = 1;
         bpf_map_update_elem(&globalmetrics, &keygb, &new_globalm, BPF_ANY);
         globalm = &new_globalm;
-    } else {
-        globalm->total_processedpackets += 1;
-        bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
-    }
+    } //else {
+       // globalm->total_processedpackets += 1;
+       // bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY); 
+    //}
+
+    globalm->total_processedpackets += 1;
 
     //In case the skb is non-linear, pull the data of each packet in a linear region of memory
     if (bpf_skb_pull_data(skb, 0) < 0) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     // Only process unicast packets
@@ -408,7 +510,8 @@ int connstatsout(struct __sk_buff* skb) {
     uint8_t* tail = (uint8_t*)(long)skb->data_end; // End of the packet data
 
     if (head + sizeof(struct ethhdr) > tail) { // Not an Ethernet frame
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     struct packet_t pkt = { 0 };    
@@ -416,26 +519,33 @@ int connstatsout(struct __sk_buff* skb) {
     uint32_t offset = 0;
 
     if (handle_ip_packet(head, tail, &offset, &pkt) == TC_ACT_OK) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     // Check if TCP/UDP header is fitting this packet
     if (head + offset + sizeof(struct tcphdr) > tail || head + offset + sizeof(struct udphdr) > tail) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     if (handle_ip_segment(head, tail, &offset, &pkt) == TC_ACT_OK) {
-        return TC_ACT_OK;
+        goto update_and_return;
+        //return TC_ACT_OK;
     }
 
     pkt.len = skb->len;
     pkt.outbound = true;
 
     if (update_metrics(&pkt, globalm) == TC_ACT_OK) {
-       return TC_ACT_OK;
+       goto update_and_return;
+       //return TC_ACT_OK;
     }
     
-    return TC_ACT_OK;
+    update_and_return:
+    // Asegurarse de que global_metrics se actualice antes de salir
+        bpf_map_update_elem(&globalmetrics, &keygb, globalm, BPF_ANY);
+        return TC_ACT_OK;
 }
 
 char _license[] SEC("license") = "Dual MIT/GPL";

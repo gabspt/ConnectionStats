@@ -11,18 +11,18 @@ service StatsService {
 
 }
 
-message ConnectionStat {     
+message ConnectionStat {
 	string protocol = 1;     
     string l_ip  = 2;       //netip.Addr
 	string r_ip  = 3;       //netip.Addr
 	uint32 l_port = 4;      
 	uint32 r_port = 5;      
-	uint32 packets_in = 6;  
-	uint32 packets_out = 7;
-	uint64 ts_start = 8;     
-	uint64 ts_current = 9;     
-	uint64 bytes_in = 10;   
-	uint64 bytes_out = 11;  
+	uint64 inpps = 6;  
+	uint64 outpps = 7;
+	uint64 inbpp = 8;     
+	uint64 outbpp = 9;     
+	uint64 inboutb = 10;   
+	uint64 inpoutp = 11;  
   }
 
 // The request message.
