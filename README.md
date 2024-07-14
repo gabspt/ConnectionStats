@@ -22,8 +22,8 @@ sudo go run connstats.go [options]
 
 current options are:
 
--interface <interface> : interface to attach the ebpf program, by default is enp0s3
-
+-i <interface> : interface to attach the ebpf program, by default is enp0s8
+-t <time_aggregation_level> : time aggregation level for the eviction of flowstats hash map by the userspace in seconds, by default is 5 seconds
 
 To run the python program go to pythonapp folder, use the server_ip option to enter the ip of the machine running the probe. Know you can also copy the pythonapp folder to a remote location that has connectivity with the machine running the probe. Inside pythonapp folder run:
 
@@ -31,8 +31,8 @@ python3 main.py [options]
 
 current options are:
 
---server_ip <server_ip> : ip of the machine running the probe, mandatory option
+--server <server_ip> : ip of the machine running the probe, mandatory option
 
 --rtime <refresh_time> : refresh time in seconds to collect the statistics from the probe, 10 sec by default
 
-example: python3 main.py --server_ip 192.168.1.204 --rtime 7
+example: python3 main.py --server 192.168.1.204 --rtime 7
